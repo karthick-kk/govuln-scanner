@@ -1,4 +1,7 @@
 # govuln-scanner
+<h1 align="center">
+  <img src="https://github.com/karthick-kk/govuln-scanner/raw/master/images/govun-scanner.png" alt="govun-scanner" width="800">
+</h1>
 
 GoVuln Scanner is a remote audit tool for security specialists, admins and auditors to scan distribution independent linux operating system configurations against CIS controls. 
 
