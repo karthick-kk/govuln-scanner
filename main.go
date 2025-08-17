@@ -2,19 +2,23 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"flag"
+	"fmt"
 	"govuln-scanner/cislinuxfive"
 	"govuln-scanner/cislinuxfour"
 	"govuln-scanner/cislinuxone"
 	"govuln-scanner/cislinuxsix"
 	"govuln-scanner/cislinuxthree"
 	"govuln-scanner/cislinuxtwo"
-	"flag"
 	"log"
 	"net/http"
-	"os/exec"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 )
 
 // Use vals to create dummy vars
@@ -24,295 +28,307 @@ func Use(vals ...interface{}) {
 	}
 }
 
+
+
 // percentOf calculation
 func percentOf(part int, total int) float64 {
+	if total == 0 {
+		return 0
+	}
 	return (float64(part) * float64(100)) / float64(total)
 }
 
-// floatToString function
-func floatToString(inputnum float64) string {
-	// to convert a float number to a string
-	return strconv.FormatFloat(inputnum, 'f', 0, 64)
-}
+				// floatToString function
+				func floatToString(inputnum float64) string {
+					// to convert a float number to a string
+					return strconv.FormatFloat(inputnum, 'f', 0, 64)
+				}
 
-// CmdExec Execute a command
-func CmdExec(args ...string) (string, error) {
+				// Context declaration
+				type Context struct {
+					Title   string
+					Node    string
+					Total   string
+					Success string
+					Percent string
+				}
 
-	baseCmd := args[0]
-	cmdArgs := args[1:]
+				// Datastat declaration
+				type Datastat struct {
+					Controlid string
+					Check     string
+					Status    string
+				}
 
-	cmd := exec.Command(baseCmd, cmdArgs...)
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
+				// scan builds page context from the request
+				func scan(r *http.Request) Context {
+					context := Context{
+						Title: "GoVuln Scanner 0.7",
+						Node:  "",
+					}
+					if r != nil {
+						context.Node = r.PostFormValue("name")
+					}
+					return context
+				}
 
-	return string(out), nil
-}
+				// auth removed; no session username
 
-func scan(r *http.Request) Context {
-	//out, err := CmdExec("../go/bin/go", "version")
-	context := Context{
-		Title: "GoVuln Scanner 0.6 R1",
-		Node:  "",
-	}
-	context.Node = r.PostFormValue("name")
-	//Use(err)
-	return context
-}
+				// scandata aggregates results from all cis modules into []Datastat
+				func scandata(user string, host string, pass string) []Datastat {
+					resultcisscan1 := cislinuxone.Cislinuxone(user, host, pass)
+					resultcisscan2 := cislinuxtwo.Cislinuxtwo(user, host, pass)
+					resultcisscan3 := cislinuxthree.Cislinuxthree(user, host, pass)
+					resultcisscan4 := cislinuxfour.Cislinuxfour(user, host, pass)
+					resultcisscan5 := cislinuxfive.Cislinuxfive(user, host, pass)
+					resultcisscan6 := cislinuxsix.Cislinuxsix(user, host, pass)
 
-func endscan(r *http.Request, score int, total int, percent float64) Context {
-	context := Context{}
+					combo := []Datastat{}
 
-	context.Total = strconv.Itoa(total)
-	context.Success = strconv.Itoa(score)
-	context.Percent = floatToString(percent)
+					// use JSON roundtrip to convert package-specific types to local Datastat
+					var jb []byte
+					var err error
+					jb, err = json.Marshal(resultcisscan1)
+					Use(err)
+					var items []Datastat
+					if err = json.Unmarshal(jb, &items); err == nil {
+						combo = append(combo, items...)
+					}
 
-	return context
-}
+					jb, err = json.Marshal(resultcisscan2)
+					Use(err)
+					if err = json.Unmarshal(jb, &items); err == nil {
+						combo = append(combo, items...)
+					}
+					jb, err = json.Marshal(resultcisscan3)
+					Use(err)
+					if err = json.Unmarshal(jb, &items); err == nil {
+						combo = append(combo, items...)
+					}
+					jb, err = json.Marshal(resultcisscan4)
+					Use(err)
+					if err = json.Unmarshal(jb, &items); err == nil {
+						combo = append(combo, items...)
+					}
+					jb, err = json.Marshal(resultcisscan5)
+					Use(err)
+					if err = json.Unmarshal(jb, &items); err == nil {
+						combo = append(combo, items...)
+					}
+					jb, err = json.Marshal(resultcisscan6)
+					Use(err)
+					if err = json.Unmarshal(jb, &items); err == nil {
+						combo = append(combo, items...)
+					}
 
-func scandata(user string, host string, pass string) []Datastat {
-	resultcisscan1 := cislinuxone.Cislinuxone(user, host, pass)
-	resultcisscan2 := cislinuxtwo.Cislinuxtwo(user, host, pass)
-	resultcisscan3 := cislinuxthree.Cislinuxthree(user, host, pass)
-	resultcisscan4 := cislinuxfour.Cislinuxfour(user, host, pass)
-	resultcisscan5 := cislinuxfive.Cislinuxfive(user, host, pass)
-	resultcisscan6 := cislinuxsix.Cislinuxsix(user, host, pass)
+					return combo
+				}
 
-	combo := []Datastat{}
-
-	for _, additem := range resultcisscan1 {
-		combo = append(combo, Datastat(additem))
-	}
-	for _, additem := range resultcisscan2 {
-		combo = append(combo, Datastat(additem))
-	}
-	for _, additem := range resultcisscan3 {
-		combo = append(combo, Datastat(additem))
-	}
-	for _, additem := range resultcisscan4 {
-		combo = append(combo, Datastat(additem))
-	}
-	for _, additem := range resultcisscan5 {
-		combo = append(combo, Datastat(additem))
-	}
-	for _, additem := range resultcisscan6 {
-		combo = append(combo, Datastat(additem))
-	}
-	//fmt.Println(combo)
-
-	return combo
-}
-
-// ScanHandler functions
-func ScanHandler(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseForm()
-	if err != nil {
-		// Handle error here via logging and then return
-	}
-	var user, host, pass string
-	host = r.PostFormValue("name")
-	user = r.PostFormValue("user")
-	pass = r.PostFormValue("password")
-	log.Println(r.Method)
-	w.Header().Add("Content Type", "text/html")
-	templates := template.New("template")
-
-	// Render navbar + title
-	t := template.New("action")
-	t, err = t.Parse(title)
-	Use(err)
-	data := scan(r)
-	var tpl bytes.Buffer
-	t.Execute(&tpl, data)
-	result := tpl.String()
-
-	// Fetch CIS report
-	report := scandata(user, host, pass)
-
-	// Calculate Score
-	score, total := 0, 0
-	for _, item := range report {
-		if strings.Contains(item.Check, "Not Scored") != true {
-			if item.Status == "PASS" {
-				score = score + 1
+			// endscan prepares a Context with score/total/percent strings
+			func endscan(r *http.Request, score int, total int, percent float64) Context {
+				context := Context{}
+				context.Total = strconv.Itoa(total)
+				context.Success = strconv.Itoa(score)
+				context.Percent = floatToString(percent)
+				return context
 			}
-			total = total + 1
-		}
-	}
-	percent := percentOf(score, total)
 
-	// Render result
-	s := template.New("action")
-	s, err = t.Parse(endres)
-	Use(err)
-	datascore := endscan(r, score, total, percent)
-	var tplscore bytes.Buffer
-	s.Execute(&tplscore, datascore)
-	rendresult := tplscore.String()
+				// StreamHandler streams check results as Server-Sent Events (SSE).
+				func StreamHandler(w http.ResponseWriter, r *http.Request) {
+					fl, ok := w.(http.Flusher)
+					if !ok {
+						http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+						return
+					}
+					ctx := r.Context()
 
-	doc := result + mbody + rendresult
-	// Start rendering Page
-	templates.New("doc").Parse(doc)
-	templates.Lookup("doc").Execute(w, report)
+					q := r.URL.Query()
+					user := q.Get("user")
+					host := q.Get("name")
+					pass := q.Get("password")
 
-}
+					w.Header().Set("Content-Type", "text/event-stream")
+					w.Header().Set("Cache-Control", "no-cache")
+					w.Header().Set("Connection", "keep-alive")
 
-func indexHandler(w http.ResponseWriter, req *http.Request) {
-	w.Header().Add("Content Type", "text/html")
-	templates := template.New("template")
-	templates.New("dex").Parse(dex)
-	product := scan(req)
-	templates.Lookup("dex").Execute(w, product)
-}
+					// small helper to send an event
+					sendEvent := func(event string, v interface{}) {
+						var b []byte
+						switch t := v.(type) {
+						case string:
+							b = []byte(t)
+						default:
+							jb, err := json.Marshal(v)
+							if err != nil {
+								return
+							}
+							b = jb
+							_ = t
+						}
+						fmt.Fprintf(w, "event: %s\n", event)
+						fmt.Fprintf(w, "data: %s\n\n", b)
+						fl.Flush()
+					}
 
-func main() {
-	var port int
-	flag.IntVar(&port, "p", 8000, "specify port to use. defaults to 8000")
-	flag.Parse()
-	http.HandleFunc("/", indexHandler)
-	http.HandleFunc("/scan", ScanHandler)
-	http.ListenAndServe(":"+strconv.Itoa(port), nil)
-}
+					// Notify client we've started
+					sendEvent("started", "scanning")
 
-// Context declaration
-type Context struct {
-	Title   string
-	Node    string
-	Total   string
-	Success string
-	Percent string
-}
+					// helper to stream results from each CIS module sequentially
+					streamModule := func(results interface{}) {
+						// results will be a slice of module-specific structs; we iterate using reflection via json roundtrip
+						jb, err := json.Marshal(results)
+						if err != nil {
+							return
+						}
+						// decode into []Datastat to standardize
+						var items []Datastat
+						if err := json.Unmarshal(jb, &items); err != nil {
+							return
+						}
+						for _, it := range items {
+							// if client disconnected, stop processing
+							select {
+							case <-ctx.Done():
+								return
+							default:
+							}
+							sendEvent("check", it)
+							// small delay to allow UI to update smoothly
+							time.Sleep(50 * time.Millisecond)
+						}
+					}
 
-// Datastat declaration
-type Datastat struct {
-	Controlid string
-	Check     string
-	Status    string
-}
+					// Call modules lazily. If client disconnects (ctx.Done()), stop starting new modules.
+					// Use interface{} return so each module can return its package-specific slice type.
+					modules := []func() interface{}{
+						func() interface{} { return cislinuxone.Cislinuxone(user, host, pass) },
+						func() interface{} { return cislinuxtwo.Cislinuxtwo(user, host, pass) },
+						func() interface{} { return cislinuxthree.Cislinuxthree(user, host, pass) },
+						func() interface{} { return cislinuxfour.Cislinuxfour(user, host, pass) },
+						func() interface{} { return cislinuxfive.Cislinuxfive(user, host, pass) },
+						func() interface{} { return cislinuxsix.Cislinuxsix(user, host, pass) },
+					}
 
-const title = `
-<!DOCTYPE html>
-<html>
-<head>
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
-<nav class="navbar navbar-inverse navbar-fixed-top">
-<div class="container-fluid">
-    <div class="navbar-header">
-    <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#myNavbar">
-        <span class="icon-bar"></span>
-        <span class="icon-bar"></span>
-        <span class="icon-bar"></span>
-    </button>
-    <a class="navbar-brand" href="/">GoVuln Scanner</a>
-    </div>
-    <div class="collapse navbar-collapse" id="myNavbar">
-    <ul class="nav navbar-nav">
-    </ul>
-    <ul class="nav navbar-nav navbar-right">
-        <li><a href="#"><span class="glyphicon glyphicon-user"></span> Sign Up</a></li>
-        <li><a href="#"><span class="glyphicon glyphicon-log-in"></span> Login</a></li>
-    </ul>
-    </div>
-</div>
-</nav> 
-</head>
-<body data-spy="scroll" data-target=".navbar" data-offset="50" href="top">
-<br>
-<br>
-<br>
-<div class="container">
-		<h4>Node: {{.Node}}</h4>
-		<a href="#score" class="btn btn-block btn-warning">Seek to Benchmark Score</a>
-</div>
-<div class="container">
-`
-const mbody = `
-<table class="table table-striped">
-    <thead>
-    <tr>
-        <th scope="col">Test number</th>
-        <th scope="col">Message</th>
-        <th scope="col">Level</th>
-    </tr>
-    </thead>
-    <tbody>
-    {{range $y, $x := . }}
-    <tr>
-      <td>{{ $x.Controlid }}</td>
-      <td>{{ $x.Check }}</td>
-      {{if eq $x.Status "FAIL"}}
-      <td class="danger">{{ $x.Status }}</td>
-      {{ else }}
-      <td class="success">{{ $x.Status }}</td>
-      {{ end }}
-    </tr>
-    {{end}}        
-    </tbody>
-</table>
-</div>
-`
-const endres = `
-<div class="container">
-<br>
-<table id="score" class="table table-striped">
-	<tr>
-	<th>Total Checks(Scored): {{.Total}}</th>
-	<th>Items Passed: {{.Success}}</th>
-	<th>Benchmark Score: {{.Percent}}</th>
-	<th><a href="#top">Back To Top</a></th>
-	</tr>
-</table>
-</div>
-</body>
-</html>
-`
+					for _, m := range modules {
+						select {
+						case <-ctx.Done():
+							// client cancelled — notify and stop
+							sendEvent("stopped", "client cancelled")
+							return
+						default:
+						}
+						results := m()
+						// if client cancelled while module ran, stop streaming
+						select {
+						case <-ctx.Done():
+							sendEvent("stopped", "client cancelled")
+							return
+						default:
+						}
+						streamModule(results)
+					}
 
-const dex = `
-<!DOCTYPE html>
-<html>
-    <head>
-        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
-        <nav class="navbar navbar-inverse">
-        <div class="container-fluid">
-            <div class="navbar-header">
-            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#myNavbar">
-                <span class="icon-bar"></span>
-                <span class="icon-bar"></span>
-                <span class="icon-bar"></span>
-            </button>
-            <a class="navbar-brand" href="#">GoVuln Scanner</a>
-            </div>
-            <div class="collapse navbar-collapse" id="myNavbar">
-            <ul class="nav navbar-nav">
-            </ul>
-            <ul class="nav navbar-nav navbar-right">
-                <li><a href="#"><span class="glyphicon glyphicon-user"></span> Sign Up</a></li>
-                <li><a href="#"><span class="glyphicon glyphicon-log-in"></span> Login</a></li>
-            </ul>
-            </div>
-        </div>
-        </nav> 
-        <div class="container">
-                <h4> {{.Title}} </h4>
-        </div>
-    </head>
-    <body>
-        <div class="container">
-        <form class="form-inline" action="/scan" method="post">
-        <label class="sr-only" for="inlineFormInputName2">Name</label>
-		<input type="text" name="name" value="" class="form-control mb-2 mr-sm-2" id="inlineFormInputName2" placeholder="Hostname/IP">
-		<div class="form-group">
-		<label class="sr-only" for="exampleInputName3">User</label>
-		<input type="text" name="user" value="" class="form-control" id="exampleInputName3" placeholder="User">
-		</div>
-		<div class="form-group">
-			<label class="sr-only" for="exampleInputPassword3">Password</label>
-			<input type="password" name="password" value="" class="form-control" id="exampleInputPassword3" placeholder="Password">
-		</div>
-        <button type="submit" class="btn btn-primary mb-2">Submit</button>
-        </form>
-        </div>
-    </body>
-</html>
-`
+					// calculate score and send final summary
+					report := scandata(user, host, pass)
+					score, total := 0, 0
+					for _, item := range report {
+						if strings.Contains(item.Check, "Not Scored") != true {
+							if item.Status == "PASS" {
+								score = score + 1
+							}
+							total = total + 1
+						}
+					}
+					percent := percentOf(score, total)
+					summary := map[string]string{
+						"Total":   strconv.Itoa(total),
+						"Success": strconv.Itoa(score),
+						"Percent": floatToString(percent),
+					}
+					sendEvent("score", summary)
+					sendEvent("done", "finished")
+				}
+
+				// ScanHandler functions
+				func ScanHandler(w http.ResponseWriter, r *http.Request) {
+					err := r.ParseForm()
+					if err != nil {
+						// Handle error here via logging and then return
+					}
+					var user, host, pass string
+					host = r.PostFormValue("name")
+					user = r.PostFormValue("user")
+					pass = r.PostFormValue("password")
+					log.Println(r.Method)
+					w.Header().Add("Content Type", "text/html")
+					// Load templates from files
+					tmplDir := filepath.Join(".", "templates")
+					titlePath := filepath.Join(tmplDir, "title.html")
+					mbodyPath := filepath.Join(tmplDir, "mbody.html")
+					endresPath := filepath.Join(tmplDir, "endres.html")
+
+					// Render navbar + title
+					t, err := template.ParseFiles(titlePath)
+					Use(err)
+					data := scan(r)
+					// attach username if present
+					data.Node = data.Node
+					var tpl bytes.Buffer
+					t.Execute(&tpl, data)
+					result := tpl.String()
+
+					// Fetch CIS report
+					report := scandata(user, host, pass)
+
+					// Calculate Score
+					score, total := 0, 0
+					for _, item := range report {
+						if strings.Contains(item.Check, "Not Scored") != true {
+							if item.Status == "PASS" {
+								score = score + 1
+							}
+							total = total + 1
+						}
+					}
+					percent := percentOf(score, total)
+
+					// Render result
+					s, err := template.ParseFiles(endresPath)
+					Use(err)
+					datascore := endscan(r, score, total, percent)
+					var tplscore bytes.Buffer
+					s.Execute(&tplscore, datascore)
+					rendresult := tplscore.String()
+
+					// Read mbody template and concatenate
+					mb, err := os.ReadFile(mbodyPath)
+					Use(err)
+					doc := result + string(mb) + rendresult
+
+					// Start rendering Page
+					templates := template.New("doc")
+					templates.Parse(doc)
+					templates.Execute(w, report)
+				}
+
+				func indexHandler(w http.ResponseWriter, req *http.Request) {
+					w.Header().Add("Content Type", "text/html")
+					tmplPath := filepath.Join(".", "templates", "dex.html")
+					t, err := template.ParseFiles(tmplPath)
+					Use(err)
+					product := scan(req)
+					t.Execute(w, product)
+				}
+
+				func main() {
+					var port int
+					flag.IntVar(&port, "p", 8000, "specify port to use. defaults to 8000")
+					flag.Parse()
+					http.HandleFunc("/", indexHandler)
+					http.HandleFunc("/scan", ScanHandler)
+					// serve static files (css/js/images)
+					fs := http.FileServer(http.Dir("./static"))
+					http.Handle("/static/", http.StripPrefix("/static/", fs))
+					http.HandleFunc("/stream", StreamHandler)
+					log.Fatal(http.ListenAndServe(":"+strconv.Itoa(port), nil))
+				}

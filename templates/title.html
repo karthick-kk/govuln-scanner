@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+<link rel="stylesheet" href="/static/css/site.css">
+<nav class="navbar navbar-inverse navbar-fixed-top">
+<div class="container-fluid">
+    <div class="navbar-header">
+    <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#myNavbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+    </button>
+	<a class="navbar-brand" href="http://localhost:8000">GoVuln Scanner</a>
+    </div>
+    <div class="collapse navbar-collapse" id="myNavbar">
+    <ul class="nav navbar-nav">
+    </ul>
+    <ul class="nav navbar-nav navbar-right">
+        <li><a href="#"><span class="glyphicon glyphicon-user"></span> Sign Up</a></li>
+        <li><a href="#"><span class="glyphicon glyphicon-log-in"></span> Login</a></li>
+    </ul>
+    </div>
+</div>
+</nav> 
+</head>
+<body data-spy="scroll" data-target=".navbar" data-offset="50" href="top">
+<br>
+<br>
+<br>
+<div class="container">
+		<h4>Node: {{.Node}}</h4>
+		<a href="#score" class="btn btn-block btn-warning">Seek to Benchmark Score</a>
+</div>
+<div class="container">
+</div>

@@ -1,0 +1,23 @@
+<table class="table table-striped">
+    <thead>
+    <tr>
+        <th scope="col">CIS ID</th>
+        <th scope="col">Message</th>
+        <th scope="col">Verdict</th>
+    </tr>
+    </thead>
+    <tbody>
+    {{range $y, $x := . }}
+    <tr>
+      <td>{{ $x.Controlid }}</td>
+      <td>{{ $x.Check }}</td>
+      {{if eq $x.Status "FAIL"}}
+      <td style="text-align:center;"><span class="label label-danger">{{ $x.Status }}</span></td>
+      {{ else }}
+      <td style="text-align:center;"><span class="label label-success">{{ $x.Status }}</span></td>
+      {{ end }}
+    </tr>
+    {{end}}        
+    </tbody>
+</table>
+</div>

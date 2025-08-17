@@ -1,0 +1,188 @@
+/* Site overrides and layout for GoVuln Scanner */
+
+html, body {
+  background-color: #fff !important;
+  min-height: 100vh;
+}
+
+body {
+  background-color: #fff !important;
+  padding-top: 100px; /* navbar (50) + controlBar (approx 50) */
+}
+
+#controlBar {
+  position: fixed;
+  top: 50px;
+  left: 0;
+  right: 0;
+  z-index: 1070; /* keep form above summary/loader */
+  background: #fff;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+#topSummary {
+  position: fixed;
+  top: 110px;
+  left: 0;
+  right: 0;
+  z-index: 1050;
+}
+
+#loaderArea {
+  position: fixed;
+  top: 150px;
+  left: 0;
+  right: 0;
+  z-index: 1048;
+  padding: 0 15px;
+}
+
+#resultsContainer {
+  margin-top: 0;
+  position: relative;
+}
+
+#resultsArea {
+  padding-top: 6px;
+}
+
+#resultsContainer #resultsArea h4 {
+  margin-top: 0;
+  padding-top: 8px;
+  margin-bottom: 6px;
+  line-height: 1.2;
+}
+
+#finalScore {
+  margin-top: 6px;
+  margin-bottom: 6px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+#liveResults thead th {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+#liveResults tbody td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+#loaderArea .alert {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#topSummary .container,
+#loaderArea .container,
+#resultsContainer {
+  max-width: 1170px; /* match Bootstrap .container default */
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 15px;
+  padding-right: 15px;
+  box-sizing: border-box;
+}
+
+#loaderArea .progress { margin: 6px 0; }
+#loaderArea .alert { margin-bottom: 6px; }
+
+#resultsArea { padding-top: 4px; }
+
+@media (max-width: 768px) {
+  body { padding-top: 220px; }
+  #controlBar { top: 50px; }
+  #topSummary { top: 120px; }
+  #loaderArea { top: 170px; }
+  #resultsContainer { margin-top: 0; }
+}
+
+#liveResults.table-striped tbody tr:nth-child(odd) td {
+  background-color: #ffffff !important; /* white */
+  color: #222 !important;
+}
+#liveResults.table-striped tbody tr:nth-child(even) td {
+  background-color: #f5f5f5 !important; /* soft grey */
+  color: #222 !important;
+}
+
+#liveResults.table-striped tbody tr td:first-child {
+  background-color: #111111 !important;
+  color: #fff !important;
+  padding: 4px 8px !important;
+  border-radius: 3px;
+  width: 1%;
+  white-space: nowrap;
+}
+
+.table.table-striped tbody tr:nth-child(odd) td {
+  background-color: #f1f1f1 !important;
+  color: #222 !important;
+}
+.table.table-striped tbody tr:nth-child(even) td {
+  background-color: #ffffff !important;
+  color: #222 !important;
+}
+
+#liveResults td.success, .table td.success {
+  background-color: #198754 !important; /* green */
+  color: #fff !important;
+  font-weight: 600;
+  text-align: center;
+}
+#liveResults td.danger, .table td.danger {
+  background-color: #dc3545 !important; /* red */
+  color: #fff !important;
+  font-weight: 600;
+  text-align: center;
+}
+
+#liveResults.table-striped tbody tr:hover td {
+  filter: brightness(1.02);
+}
+
+#liveResults td .label,
+.table td .label {
+  display: inline-block;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff !important;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: baseline;
+  border-radius: 3px;
+}
+
+/* explicit PASS/FAIL colours */
+#liveResults td .label-success,
+.table td .label-success {
+  background-color: #28a745 !important; /* green */
+  border: 1px solid #1e7e34 !important;
+}
+#liveResults td .label-danger,
+.table td .label-danger {
+  background-color: #dc3545 !important; /* red */
+  border: 1px solid #b02a37 !important;
+}
+
+/* Align the Verdict column (3rd column) so header and badges line up */
+#liveResults thead th:nth-child(3),
+#liveResults tbody td:nth-child(3) {
+  text-align: center !important;
+  vertical-align: middle !important;
+  width: 110px !important;
+  white-space: nowrap;
+}
+
+/* Make sure header uses same vertical centering */
+#liveResults thead th:nth-child(3) {
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
+

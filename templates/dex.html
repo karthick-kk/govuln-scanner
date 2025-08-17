@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+		<head>
+				<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+				<link rel="stylesheet" href="/static/css/site.css?v=2">
+			<nav class="navbar navbar-inverse navbar-fixed-top">
+        <div class="container-fluid">
+            <div class="navbar-header">
+            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#myNavbar">
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+				<a class="navbar-brand" href="http://localhost:8000">GoVuln Scanner</a>
+            </div>
+            <div class="collapse navbar-collapse" id="myNavbar">
+            <ul class="nav navbar-nav">
+            </ul>
+						<ul class="nav navbar-nav navbar-right">
+						</ul>
+            </div>
+        </div>
+				</nav>
+			<!--<div class="container">
+				<h4> {{.Title}} </h4>
+			</div>-->
+		</head>
+		<body>
+				<!-- fixed control bar containing the form so it stays visible while results scroll -->
+						<div id="controlBar">
+							<div class="container">
+								<div style="margin-bottom:8px;"><h4 style="margin:0;">{{.Title}}</h4></div>
+								<form id="scanForm" class="form-inline" action="/scan" method="post" onsubmit="startStream(event)">
+									<label class="sr-only" for="inlineFormInputName2">Name</label>
+									<input type="text" name="name" value="" class="form-control mb-2 mr-sm-2" id="inlineFormInputName2" placeholder="Hostname/IP">
+									<div class="form-group">
+										<label class="sr-only" for="exampleInputName3">User</label>
+										<input type="text" name="user" value="" class="form-control" id="exampleInputName3" placeholder="User">
+									</div>
+									<div class="form-group">
+										<label class="sr-only" for="exampleInputPassword3">Password</label>
+										<input type="password" name="password" value="" class="form-control" id="exampleInputPassword3" placeholder="Password">
+									</div>
+									  <button type="submit" class="btn btn-primary mb-2">Submit</button>
+									  <button id="stopBtn" type="button" class="btn btn-danger mb-2" style="display:none; margin-left:6px;">Stop</button>
+								</form>
+							</div>
+						</div>
+
+					<!-- Fixed top summary (hidden until score arrives) -->
+				<div id="topSummary" style="display:none; padding:0; text-align:center;">
+						<div class="container">
+							<div id="topSummaryInner" class="alert alert-info" role="status">Total: - &nbsp; Passed: - &nbsp; Score: -</div>
+						</div>
+				</div>
+
+					<!-- Loader and live updates (fixed) -->
+					<div id="loaderArea" style="display:none;">
+						<div class="container">
+						  <div class="alert alert-info" role="alert" style="display:flex; justify-content:space-between; align-items:center;">
+							  <div><strong>Scanning...</strong> <span id="currentCheck">Initializing</span></div>
+							  <div style="text-align:right; min-width:90px;"><small>Elapsed: <span id="elapsed">00:00</span></small></div>
+						  </div>
+						  <div class="progress">
+							  <div id="progressBar" class="progress-bar progress-bar-striped active" role="progressbar" style="width:0%"></div>
+						  </div>
+						</div>
+					</div>
+
+					<div class="container" id="resultsContainer">
+
+					<div id="resultsArea" style="display:none;">
+						<h4>Results</h4>
+						<table class="table table-striped" id="liveResults">
+								<thead>
+									<tr>
+										<th>CIS ID</th>
+										<th>Message</th>
+										<th style="text-align:center;">Verdict</th>
+									</tr>
+								</thead>
+								<tbody></tbody>
+							</table>
+							<div id="finalScore" style="margin-top:10px;"></div>
+					</div>
+					</div>
+
+			<script src="/static/js/app.js?v=2"></script>
+		</body>
+</html>
