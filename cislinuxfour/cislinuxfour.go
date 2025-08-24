@@ -1,25 +1,20 @@
 package cislinuxfour
 
 import (
-	"log"
 	"govuln-scanner/remexec"
+	"log"
 	"strings"
 )
 
-var checkstat, cmd string
-
-// Check represents a single CIS check
 type Check struct {
 	ID          string
 	Description string
 	Command     string
 }
 
-// CislinuxfourOptimized Function - Optimized version with connection reuse
 func CislinuxfourOptimized(conn *remexec.SSHConnection) []Datastat {
 	ServicesSlice := []Datastat{}
 
-	// Define all checks with their commands
 	checks := []Check{
 		{
 			ID:          "4.1.1.1",
@@ -183,80 +178,41 @@ func CislinuxfourOptimized(conn *remexec.SSHConnection) []Datastat {
 		},
 	}
 
-	// Extract commands for batch execution
-	commands := make([]string, len(checks))
-	for i, check := range checks {
-		commands[i] = check.Command
-	}
-
-	// Execute all commands in a single batch
-	log.Printf("DEBUG: Executing %d CIS cislinuxfour checks in batch\n", len(commands))
-	batchResult := conn.RunCommandsBatch(commands)
-	
-	if batchResult.Error != nil {
-		log.Printf("ERROR: Batch execution failed: %v\n", batchResult.Error)
-		// Fallback to individual commands if batch fails
-		return cislinuxfourFallback(conn, checks)
-	}
-
-	// Process results
-	for i, result := range batchResult.Results {
-		var checkstat string
-		if len(strings.TrimSpace(result.Output)) == 0 {
-			checkstat = "PASS"
-		} else {
-			log.Printf("DEBUG: Check %s output: %s\n", checks[i].ID, result.Output)
-			checkstat = "FAIL"
-		}
-		ServicesSlice = append(ServicesSlice, Datastat{
-			checks[i].ID,
-			checks[i].Description,
-			checkstat,
-		})
-	}
-
-	log.Printf("DEBUG: Completed %d CIS cislinuxfour checks via batch execution\n", len(ServicesSlice))
-	return ServicesSlice
-}
-
-// Fallback function for individual command execution if batch fails
-func cislinuxfourFallback(conn *remexec.SSHConnection, checks []Check) []Datastat {
-	ServicesSlice := []Datastat{}
-	log.Println("DEBUG: Using fallback individual command execution")
+	log.Printf("DEBUG: Executing %d CIS cislinuxfour checks individually\n", len(checks))
 	
 	for _, check := range checks {
 		out, err := conn.RunCommand(check.Command)
+		checkstat := remexec.EvalCommandResult(remexec.CommandResult{
+			Output: out,
+			Error:  err,
+		})
+		
 		if err != nil {
-			log.Printf("ERROR: Command failed for %s: %v\n", check.ID, err)
+			log.Printf("DEBUG: Check %s command error: %v; output: %s\n", check.ID, err, out)
+		} else if len(strings.TrimSpace(out)) != 0 {
+			log.Printf("DEBUG: Check %s output: %s\n", check.ID, out)
 		}
 		
-		var checkstat string
-		if len(strings.TrimSpace(out)) == 0 {
-			checkstat = "PASS"
-		} else {
-			log.Printf("DEBUG: Check %s output: %s\n", check.ID, out)
-			checkstat = "FAIL"
-		}
 		ServicesSlice = append(ServicesSlice, Datastat{check.ID, check.Description, checkstat})
 	}
-	
+
+	log.Printf("DEBUG: Completed %d CIS cislinuxfour checks via individual execution\n", len(ServicesSlice))
 	return ServicesSlice
 }
 
-// Original Cislinuxfour Function - Updated to use optimized connection handling
+
+
 func Cislinuxfour(user string, host string, pass string, key string) []Datastat {
-	// Create connection for this scan
 	conn, err := remexec.NewSSHConnection(user, host, pass, key)
 	if err != nil {
 		log.Printf("ERROR: Failed to create SSH connection: %v\n", err)
 		return []Datastat{}
 	}
 	defer conn.Close()
-	
+
 	return CislinuxfourOptimized(conn)
 }
 
-// Datastat Type
 type Datastat struct {
 	Controlid string
 	Check     string

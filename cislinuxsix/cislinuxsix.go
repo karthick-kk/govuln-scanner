@@ -1,25 +1,20 @@
 package cislinuxsix
 
 import (
-	"log"
 	"govuln-scanner/remexec"
+	"log"
 	"strings"
 )
 
-var checkstat, cmd string
-
-// Check represents a single CIS check
 type Check struct {
 	ID          string
 	Description string
 	Command     string
 }
 
-// CislinuxsixOptimized Function - Optimized version with connection reuse
 func CislinuxsixOptimized(conn *remexec.SSHConnection) []Datastat {
 	ServicesSlice := []Datastat{}
 
-	// Define all checks with their commands
 	checks := []Check{
 		{
 			ID:          "6.1.1",
@@ -74,7 +69,7 @@ func CislinuxsixOptimized(conn *remexec.SSHConnection) []Datastat {
 		{
 			ID:          "6.1.11",
 			Description: "Ensure no unowned files or directories exist (Scored)",
-			Command:     "if [[ `sudo df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -nouser 2>/dev/null` != '' ]]; then echo ''; else echo 'Ensure no unowned files or directories exist'; fi",
+			Command:     "if [[ `sudo df --local -P | awk '{if (NR!=1) print $6}' | xargs -I '{}' find '{}' -xdev -nouser 2>/dev/null` != '' ]]; then echo ''; else echo 'Ensure no unowned files or directories exist'; fi",
 		},
 		{
 			ID:          "6.1.12",
@@ -98,18 +93,18 @@ func CislinuxsixOptimized(conn *remexec.SSHConnection) []Datastat {
 		},
 		{
 			ID:          "6.2.2",
-			Description: "Ensure no legacy " + " entries exist in /etc/passwd (Scored)",
-			Command:     "if [[ `grep '^+:' /etc/passwd` == '' ]]; then echo ''; else echo 'Ensure no legacy ",
+			Description: "Ensure no legacy + entries exist in /etc/passwd (Scored)",
+			Command:     "if [[ `grep '^+:' /etc/passwd` == '' ]]; then echo ''; else echo 'Ensure no legacy + entries exist in /etc/passwd'; fi",
 		},
 		{
 			ID:          "6.2.3",
-			Description: "Ensure no legacy " + " entries exist in /etc/shadow (Scored)",
-			Command:     "if [[ `sudo grep '^+:' /etc/shadow` == '' ]]; then echo ''; else echo 'Ensure no legacy ",
+			Description: "Ensure no legacy + entries exist in /etc/shadow (Scored)",
+			Command:     "if [[ `sudo grep '^+:' /etc/shadow` == '' ]]; then echo ''; else echo 'Ensure no legacy + entries exist in /etc/shadow'; fi",
 		},
 		{
 			ID:          "6.2.4",
-			Description: "Ensure no legacy " + " entries exist in /etc/group (Scored)",
-			Command:     "if [[ `sudo grep '^+:' /etc/group` == '' ]]; then echo ''; else echo 'Ensure no legacy ",
+			Description: "Ensure no legacy + entries exist in /etc/group (Scored)",
+			Command:     "if [[ `sudo grep '^+:' /etc/group` == '' ]]; then echo ''; else echo 'Ensure no legacy + entries exist in /etc/group'; fi",
 		},
 		{
 			ID:          "6.2.5",
@@ -149,7 +144,7 @@ func CislinuxsixOptimized(conn *remexec.SSHConnection) []Datastat {
 		{
 			ID:          "6.2.12",
 			Description: "Ensure no users have .netrc files (Scored)",
-			Command: "awk -F: '$3>=1000 && $1!=\"nobody\" {print $6}' /etc/passwd | while read home; do [[ -f \"$home/.netrc\" ]] && echo found && break; done | grep -q found && echo \"users have .netrc files\"",
+			Command:     `awk -F: '$3>=1000 && $1!="nobody" {print $6}' /etc/passwd | while read -r home; do [ -f "$home/.netrc" ] && echo 'users have .netrc files' && break; done`,
 		},
 		{
 			ID:          "6.2.13",
@@ -193,80 +188,50 @@ func CislinuxsixOptimized(conn *remexec.SSHConnection) []Datastat {
 		},
 	}
 
-	// Extract commands for batch execution
-	commands := make([]string, len(checks))
-	for i, check := range checks {
-		commands[i] = check.Command
-	}
-
-	// Execute all commands in a single batch
-	log.Printf("DEBUG: Executing %d CIS cislinuxsix checks in batch\n", len(commands))
-	batchResult := conn.RunCommandsBatch(commands)
+	log.Printf("DEBUG: Executing %d CIS cislinuxsix checks individually\n", len(checks))
 	
-	if batchResult.Error != nil {
-		log.Printf("ERROR: Batch execution failed: %v\n", batchResult.Error)
-		// Fallback to individual commands if batch fails
-		return cislinuxsixFallback(conn, checks)
-	}
-
-	// Process results
-	for i, result := range batchResult.Results {
-		var checkstat string
-		if len(strings.TrimSpace(result.Output)) == 0 {
-			checkstat = "PASS"
-		} else {
-			log.Printf("DEBUG: Check %s output: %s\n", checks[i].ID, result.Output)
-			checkstat = "FAIL"
+	for _, check := range checks {
+		log.Printf("DEBUG: Executing check %s\n", check.ID)
+		
+		output, err := conn.RunCommand(check.Command)
+		
+		result := remexec.CommandResult{
+			Command: check.Command,
+			Output:  output,
+			Error:   err,
 		}
+		
+		checkstat := remexec.EvalCommandResult(result)
+		
+		if result.Error != nil {
+			log.Printf("DEBUG: Check %s command error: %v; output: %s\n", check.ID, result.Error, result.Output)
+		}
+		if len(strings.TrimSpace(result.Output)) != 0 {
+			log.Printf("DEBUG: Check %s output: %s\n", check.ID, result.Output)
+		}
+		
 		ServicesSlice = append(ServicesSlice, Datastat{
-			checks[i].ID,
-			checks[i].Description,
+			check.ID,
+			check.Description,
 			checkstat,
 		})
 	}
 
-	log.Printf("DEBUG: Completed %d CIS cislinuxsix checks via batch execution\n", len(ServicesSlice))
+	log.Printf("DEBUG: Completed %d CIS cislinuxsix checks via individual execution\n", len(ServicesSlice))
 	return ServicesSlice
 }
 
-// Fallback function for individual command execution if batch fails
-func cislinuxsixFallback(conn *remexec.SSHConnection, checks []Check) []Datastat {
-	ServicesSlice := []Datastat{}
-	log.Println("DEBUG: Using fallback individual command execution")
-	
-	for _, check := range checks {
-		out, err := conn.RunCommand(check.Command)
-		if err != nil {
-			log.Printf("ERROR: Command failed for %s: %v\n", check.ID, err)
-		}
-		
-		var checkstat string
-		if len(strings.TrimSpace(out)) == 0 {
-			checkstat = "PASS"
-		} else {
-			log.Printf("DEBUG: Check %s output: %s\n", check.ID, out)
-			checkstat = "FAIL"
-		}
-		ServicesSlice = append(ServicesSlice, Datastat{check.ID, check.Description, checkstat})
-	}
-	
-	return ServicesSlice
-}
-
-// Original Cislinuxsix Function - Updated to use optimized connection handling
 func Cislinuxsix(user string, host string, pass string, key string) []Datastat {
-	// Create connection for this scan
 	conn, err := remexec.NewSSHConnection(user, host, pass, key)
 	if err != nil {
 		log.Printf("ERROR: Failed to create SSH connection: %v\n", err)
 		return []Datastat{}
 	}
 	defer conn.Close()
-	
+
 	return CislinuxsixOptimized(conn)
 }
 
-// Datastat Type
 type Datastat struct {
 	Controlid string
 	Check     string
