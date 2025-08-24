@@ -8,391 +8,265 @@ import (
 
 var checkstat, cmd string
 
-// Cislinuxsix Function
-func Cislinuxsix(user string, host string, pass string) []Datastat {
+// Check represents a single CIS check
+type Check struct {
+	ID          string
+	Description string
+	Command     string
+}
+
+// CislinuxsixOptimized Function - Optimized version with connection reuse
+func CislinuxsixOptimized(conn *remexec.SSHConnection) []Datastat {
 	ServicesSlice := []Datastat{}
 
-	// Check 6.1.1
-	cmd = "if [[ `uname -a` != '' ]]; then echo ''; else echo 'Audit system file permissions'; fi"
-	out, _ := remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
+	// Define all checks with their commands
+	checks := []Check{
+		{
+			ID:          "6.1.1",
+			Description: "Audit system file permissions (Not Scored)",
+			Command:     "if [[ `uname -a` != '' ]]; then echo ''; else echo 'Audit system file permissions'; fi",
+		},
+		{
+			ID:          "6.1.2",
+			Description: "Ensure permissions on /etc/passwd are configured (Scored)",
+			Command:     "if [[ `stat /etc/passwd 2>/dev/null| grep root|grep 0644` != '' ]]; then echo ''; else echo 'Ensure permissions on /etc/passwd are configured'; fi",
+		},
+		{
+			ID:          "6.1.3",
+			Description: "Ensure permissions on /etc/shadow are configured (Scored)",
+			Command:     "if [[ `sudo stat /etc/shadow 2>/dev/null| grep root|grep 0640` != '' ]]; then echo ''; else echo 'Ensure permissions on /etc/shadow are configured'; fi",
+		},
+		{
+			ID:          "6.1.4",
+			Description: "Ensure permissions on /etc/group are configured (Scored)",
+			Command:     "if [[ `stat /etc/group 2>/dev/null| grep root|grep 0644` != '' ]]; then echo ''; else echo 'Ensure permissions on /etc/group are configured'; fi",
+		},
+		{
+			ID:          "6.1.5",
+			Description: "Ensure permissions on /etc/gshadow are configured (Scored)",
+			Command:     "if [[ `stat /etc/gshadow 2>/dev/null| grep root|grep 0640` != '' ]]; then echo ''; else echo 'Ensure permissions on /etc/gshadow are configured'; fi",
+		},
+		{
+			ID:          "6.1.6",
+			Description: "Ensure permissions on /etc/passwd- are configured (Scored)",
+			Command:     "if [[ `sudo stat /etc/passwd- 2>/dev/null| grep root|grep 0600` != '' ]]; then echo ''; else echo 'Ensure permissions on /etc/passwd- are configured'; fi",
+		},
+		{
+			ID:          "6.1.7",
+			Description: "Ensure permissions on /etc/shadow- are configured (Scored)",
+			Command:     "if [[ `sudo stat /etc/shadow- 2>/dev/null| grep root|grep 0640` != '' ]]; then echo ''; else echo 'Ensure permissions on /etc/shadow- are configured'; fi",
+		},
+		{
+			ID:          "6.1.8",
+			Description: "Ensure permissions on /etc/group- are configured (Scored)",
+			Command:     "if [[ `stat /etc/group- 2>/dev/null| grep root|grep 0644` != '' ]]; then echo ''; else echo 'Ensure permissions on /etc/group- are configured'; fi",
+		},
+		{
+			ID:          "6.1.9",
+			Description: "Ensure permissions on /etc/gshadow- are configured (Scored)",
+			Command:     "if [[ `sudo stat /etc/gshadow- 2>/dev/null| grep root|grep 0640` != '' ]]; then echo ''; else echo 'Ensure permissions on /etc/gshadow- are configured'; fi",
+		},
+		{
+			ID:          "6.1.10",
+			Description: "Ensure no world writable files exist (Scored)",
+			Command:     "if [[ `sudo df --local -P | awk '{if (NR!=1) print $6}' | xargs -I '{}' find '{}' -xdev -type f -perm -0002 2>/dev/null` != '' ]]; then echo ''; else echo 'Ensure no world writable files exist'; fi",
+		},
+		{
+			ID:          "6.1.11",
+			Description: "Ensure no unowned files or directories exist (Scored)",
+			Command:     "if [[ `sudo df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -nouser 2>/dev/null` != '' ]]; then echo ''; else echo 'Ensure no unowned files or directories exist'; fi",
+		},
+		{
+			ID:          "6.1.12",
+			Description: "Ensure no ungrouped files or directories exist (Scored)",
+			Command:     "if [[ `sudo df --local -P | awk '{if (NR!=1) print $6}' | xargs -I '{}' find '{}' -xdev -nogroup 2>/dev/null` != '' ]]; then echo ''; else echo 'Ensure no ungrouped files or directories exist'; fi",
+		},
+		{
+			ID:          "6.1.13",
+			Description: "Audit SUID executables (Not Scored)",
+			Command:     "if [[ `sudo df --local -P | awk '{if (NR!=1) print $6}' | xargs -I '{}' find '{}' -xdev -type f -perm -4000 2>/dev/null` == '' ]]; then echo ''; else echo ''; fi",
+		},
+		{
+			ID:          "6.1.14",
+			Description: "Audit SGID executables (Not Scored)",
+			Command:     "if [[ `sudo df --local -P | awk '{if (NR!=1) print $6}' | xargs -I '{}' find '{}' -xdev -type f -perm -2000 2>/dev/null` == '' ]]; then echo ''; else echo ''; fi",
+		},
+		{
+			ID:          "6.2.1",
+			Description: "Ensure password fields are not empty (Scored)",
+			Command:     "if [[ `sudo awk -F: '{if ( length($2)==0 ) print $0;}' /etc/shadow` == '' ]]; then echo ''; else echo 'Ensure password fields are not empty'; fi",
+		},
+		{
+			ID:          "6.2.2",
+			Description: "Ensure no legacy " + " entries exist in /etc/passwd (Scored)",
+			Command:     "if [[ `grep '^+:' /etc/passwd` == '' ]]; then echo ''; else echo 'Ensure no legacy ",
+		},
+		{
+			ID:          "6.2.3",
+			Description: "Ensure no legacy " + " entries exist in /etc/shadow (Scored)",
+			Command:     "if [[ `sudo grep '^+:' /etc/shadow` == '' ]]; then echo ''; else echo 'Ensure no legacy ",
+		},
+		{
+			ID:          "6.2.4",
+			Description: "Ensure no legacy " + " entries exist in /etc/group (Scored)",
+			Command:     "if [[ `sudo grep '^+:' /etc/group` == '' ]]; then echo ''; else echo 'Ensure no legacy ",
+		},
+		{
+			ID:          "6.2.5",
+			Description: "Ensure root is the only UID 0 account (Scored)",
+			Command:     "if [[ `awk -F: '($3 == 0) { print $1 }' /etc/passwd|grep root|wc -l` -eq 1 ]]; then echo ''; else echo 'Ensure root is the only UID 0 account'; fi",
+		},
+		{
+			ID:          "6.2.6",
+			Description: "Ensure root PATH Integrity (Scored)",
+			Command:     "found=0; if [[ `echo $PATH|grep ::` != '' || `echo $PATH|grep :?` != '' ]]; then found=0; else found=1; fi; p=$(echo $PATH | sed -e 's/::/:/' -e 's/:$//' -e 's/:/ /g'); for d in $p; do if [[ `ls -ld $d|cut -d ' ' -f1|awk '{print substr($0, 6, 1);}'` != '-' || `ls -ld $d|cut -d ' ' -f1|awk '{print substr($0, 9, 1);}'` != '-' ]]; then found=0; else found=1; fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'Ensure root PATH Integrity'; fi",
+		},
+		{
+			ID:          "6.2.7",
+			Description: "Ensure all users' home directories exist (Scored)",
+			Command:     "found=0; cat /etc/passwd | while read entry; do if [[ `echo $entry|grep -v nobody|awk -F: '{print $3}'` -ge 1000 ]]; then dir=`echo $entry|awk -F: '{print $6}'`; if [[ ! -d $dir ]]; then found=1; fi; fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'missing home dir(s)'; fi",
+		},
+		{
+			ID:          "6.2.8",
+			Description: "Ensure users' home directories permissions are 750 or more restrictive (Scored)",
+			Command:     "found=0; cat /etc/passwd | while read entry; do if [[ `echo $entry|grep -v nobody|awk -F: '{print $3}'` -ge 1000 ]]; then dir=`echo $entry|awk -F: '{print $6}'`; if [[ `ls -ld $dir 2>/dev/null|cut -d ' ' -f1|awk '{print substr($0, 8, 3);}'` != '---' ]]; then found=1; fi; fi; done; if [[ $found == 1 ]]; then echo ''; else echo 'home dir permissions incorrect'; fi",
+		},
+		{
+			ID:          "6.2.9",
+			Description: "Ensure users own their home directories (Scored)",
+			Command:     "found=0; cat /etc/passwd | while read entry; do if [[ `echo $entry|grep -v nobody|awk -F: '{print $3}'` -ge 1000 ]]; then dir=`echo $entry|awk -F: '{print $6}'`; user=`echo $entry|awk -F: '{print $1}'`; if [[ `stat -L -c %U $dir` != $user ]]; then found=1; fi; fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'home dir ownership incorrect'; fi",
+		},
+		{
+			ID:          "6.2.10",
+			Description: "Ensure users dot files are not group or world writable (Scored)",
+			Command:     "found=0; cat /etc/passwd | while read entry; do if [[ `echo $entry|grep -v nobody|awk -F: '{print $3}'` -ge 1000 ]]; then dir=`echo $entry|awk -F: '{print $6}'`; for file in $dir/.[A-Za-z0-9]*; do if [[ `ls -ld $file|cut -d ' ' -f1|awk '{print substr($0, 6, 1);}'` != '-' || `ls -ld $file|cut -d ' ' -f1|awk '{print substr($0, 9, 1);}'` != '-' ]]; then echo found=1; fi; done;fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'dot files are not group or world writable'; fi",
+		},
+		{
+			ID:          "6.2.11",
+			Description: "Ensure no users have .forward files (Scored)",
+			Command:     "found=0; cat /etc/passwd | while read entry; do if [[ `echo $entry|grep -v nobody|awk -F: '{print $3}'` -ge 1000 ]]; then dir=`echo $entry|awk -F: '{print $6}'`; if [[ `ls -l $dir/.forward 2>/dev/null` != '' ]]; then found=1; fi; fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'users have .forward files'; fi",
+		},
+		{
+			ID:          "6.2.12",
+			Description: "Ensure no users have .netrc files (Scored)",
+			Command: "awk -F: '$3>=1000 && $1!=\"nobody\" {print $6}' /etc/passwd | while read home; do [[ -f \"$home/.netrc\" ]] && echo found && break; done | grep -q found && echo \"users have .netrc files\"",
+		},
+		{
+			ID:          "6.2.13",
+			Description: "Ensure users .netrc Files are not group or world accessible (Scored)",
+			Command:     "found=0; cat /etc/passwd | while read entry; do if [[ `echo $entry|grep -v nobody|awk -F: '{print $3}'` -ge 1000 ]]; then dir=`echo $entry|awk -F: '{print $6}'`; if [[ `ls -l $dir/.netrc 2>/dev/null` != '' ]]; then found=1; fi; fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'users have .netrc files'; fi",
+		},
+		{
+			ID:          "6.2.14",
+			Description: "Ensure no users have .rhosts files (Scored)",
+			Command:     "found=0; cat /etc/passwd | while read entry; do if [[ `echo $entry|grep -v nobody|awk -F: '{print $3}'` -ge 1000 ]]; then dir=`echo $entry|awk -F: '{print $6}'`; if [[ `ls -l $dir/.rhosts 2>/dev/null` != '' ]]; then found=1; fi; fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'users have .rhosts files'; fi",
+		},
+		{
+			ID:          "6.2.15",
+			Description: "Ensure all groups in /etc/passwd exist in /etc/group (Scored)",
+			Command:     "found=0; for i in $(cut -s -d: -f4 /etc/passwd | sort -u ); do if [[ `cat /etc/group|awk -F: '{print $3}'|grep -w $i` == '' ]]; then found=1; fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'Ensure all groups in /etc/passwd exist in /etc/group'; fi",
+		},
+		{
+			ID:          "6.2.16",
+			Description: "Ensure no duplicate UIDs exist (Scored)",
+			Command:     "if [[ `awk -F: '{print $3}' /etc/passwd| sort -n|uniq| wc -l` -eq `cat /etc/passwd|wc -l` ]]; then echo ''; else echo 'Ensure no duplicate UIDs exist'; fi",
+		},
+		{
+			ID:          "6.2.17",
+			Description: "Ensure no duplicate UIDs exist (Scored)",
+			Command:     "if [[ `awk -F: '{print $3}' /etc/group| sort -n|uniq| wc -l` -eq `cat /etc/group|wc -l` ]]; then echo ''; else echo 'Ensure no duplicate GIDs exist'; fi",
+		},
+		{
+			ID:          "6.2.18",
+			Description: "Ensure no duplicate user names exist (Scored)",
+			Command:     "if [[ `awk -F: '{print $1}' /etc/passwd| sort -n|uniq| wc -l` -eq `cat /etc/passwd|wc -l` ]]; then echo ''; else echo 'Ensure no duplicate usernames exist'; fi",
+		},
+		{
+			ID:          "6.2.19",
+			Description: "Ensure no duplicate group names exist (Scored)",
+			Command:     "if [[ `awk -F: '{print $1}' /etc/group| sort -n|uniq| wc -l` -eq `cat /etc/group|wc -l` ]]; then echo ''; else echo 'Ensure no duplicate groupnamesIDs exist'; fi",
+		},
+		{
+			ID:          "6.2.20",
+			Description: "Ensure shadow group is empty (Scored)",
+			Command:     "if [[ `grep ^shadow:[^:]*:[^:]*:[^:]+ /etc/group` == '' ]]; then echo ''; else echo 'Ensure shadow group is empty'; fi",
+		},
 	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.1.1", "Audit system file permissions (Not Scored)", checkstat})
 
-	// Check 6.1.2
-	cmd = "if [[ `stat /etc/passwd 2>/dev/null| grep root|grep 0644` != '' ]]; then echo ''; else echo 'Ensure permissions on /etc/passwd are configured'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
+	// Extract commands for batch execution
+	commands := make([]string, len(checks))
+	for i, check := range checks {
+		commands[i] = check.Command
 	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.1.2", "Ensure permissions on /etc/passwd are configured (Scored)", checkstat})
 
-	// Check 6.1.3
-	cmd = "if [[ `sudo stat /etc/shadow 2>/dev/null| grep root|grep 0640` != '' ]]; then echo ''; else echo 'Ensure permissions on /etc/shadow are configured'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
+	// Execute all commands in a single batch
+	log.Printf("DEBUG: Executing %d CIS cislinuxsix checks in batch\n", len(commands))
+	batchResult := conn.RunCommandsBatch(commands)
+	
+	if batchResult.Error != nil {
+		log.Printf("ERROR: Batch execution failed: %v\n", batchResult.Error)
+		// Fallback to individual commands if batch fails
+		return cislinuxsixFallback(conn, checks)
 	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.1.3", "Ensure permissions on /etc/shadow are configured (Scored)", checkstat})
 
-	// Check 6.1.4
-	cmd = "if [[ `stat /etc/group 2>/dev/null| grep root|grep 0644` != '' ]]; then echo ''; else echo 'Ensure permissions on /etc/group are configured'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
+	// Process results
+	for i, result := range batchResult.Results {
+		var checkstat string
+		if len(strings.TrimSpace(result.Output)) == 0 {
+			checkstat = "PASS"
+		} else {
+			log.Printf("DEBUG: Check %s output: %s\n", checks[i].ID, result.Output)
+			checkstat = "FAIL"
+		}
+		ServicesSlice = append(ServicesSlice, Datastat{
+			checks[i].ID,
+			checks[i].Description,
+			checkstat,
+		})
 	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.1.4", "Ensure permissions on /etc/group are configured (Scored)", checkstat})
 
-	// Check 6.1.5
-	cmd = "if [[ `stat /etc/gshadow 2>/dev/null| grep root|grep 0640` != '' ]]; then echo ''; else echo 'Ensure permissions on /etc/gshadow are configured'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.1.5", "Ensure permissions on /etc/gshadow are configured (Scored)", checkstat})
-
-	// Check 6.1.6
-	cmd = "if [[ `sudo stat /etc/passwd- 2>/dev/null| grep root|grep 0600` != '' ]]; then echo ''; else echo 'Ensure permissions on /etc/passwd- are configured'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.1.6", "Ensure permissions on /etc/passwd- are configured (Scored)", checkstat})
-
-	// Check 6.1.7
-	cmd = "if [[ `sudo stat /etc/shadow- 2>/dev/null| grep root|grep 0640` != '' ]]; then echo ''; else echo 'Ensure permissions on /etc/shadow- are configured'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.1.7", "Ensure permissions on /etc/shadow- are configured (Scored)", checkstat})
-
-	// Check 6.1.8
-	cmd = "if [[ `stat /etc/group- 2>/dev/null| grep root|grep 0644` != '' ]]; then echo ''; else echo 'Ensure permissions on /etc/group- are configured'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.1.8", "Ensure permissions on /etc/group- are configured (Scored)", checkstat})
-
-	// Check 6.1.9
-	cmd = "if [[ `sudo stat /etc/gshadow- 2>/dev/null| grep root|grep 0640` != '' ]]; then echo ''; else echo 'Ensure permissions on /etc/gshadow- are configured'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.1.9", "Ensure permissions on /etc/gshadow- are configured (Scored)", checkstat})
-
-	// Check 6.1.10
-	cmd = "if [[ `sudo df --local -P | awk '{if (NR!=1) print $6}' | xargs -I '{}' find '{}' -xdev -type f -perm -0002 2>/dev/null` != '' ]]; then echo ''; else echo 'Ensure no world writable files exist'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.1.10", "Ensure no world writable files exist (Scored)", checkstat})
-
-	// Check 6.1.11
-	cmd = "if [[ `sudo df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -nouser 2>/dev/null` != '' ]]; then echo ''; else echo 'Ensure no unowned files or directories exist'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.1.11", "Ensure no unowned files or directories exist (Scored)", checkstat})
-
-	// Check 6.1.12
-	cmd = "if [[ `sudo df --local -P | awk '{if (NR!=1) print $6}' | xargs -I '{}' find '{}' -xdev -nogroup 2>/dev/null` != '' ]]; then echo ''; else echo 'Ensure no ungrouped files or directories exist'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.1.12", "Ensure no ungrouped files or directories exist (Scored)", checkstat})
-
-	// Check 6.1.13
-	cmd = "if [[ `sudo df --local -P | awk '{if (NR!=1) print $6}' | xargs -I '{}' find '{}' -xdev -type f -perm -4000 2>/dev/null` == '' ]]; then echo ''; else echo ''; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.1.13", "Audit SUID executables (Not Scored)", checkstat})
-
-	// Check 6.1.14
-	cmd = "if [[ `sudo df --local -P | awk '{if (NR!=1) print $6}' | xargs -I '{}' find '{}' -xdev -type f -perm -2000 2>/dev/null` == '' ]]; then echo ''; else echo ''; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.1.14", "Audit SGID executables (Not Scored)", checkstat})
-
-	// Check 6.2.1
-	cmd = "if [[ `sudo awk -F: '{if ( length($2)==0 ) print $0;}' /etc/shadow` == '' ]]; then echo ''; else echo 'Ensure password fields are not empty'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.1", "Ensure password fields are not empty (Scored)", checkstat})
-
-	// Check 6.2.2
-	cmd = "if [[ `grep '^+:' /etc/passwd` == '' ]]; then echo ''; else echo 'Ensure no legacy " + " entries exist in /etc/passwd'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.2", "Ensure no legacy " + " entries exist in /etc/passwd (Scored)", checkstat})
-
-	// Check 6.2.3
-	cmd = "if [[ `sudo grep '^+:' /etc/shadow` == '' ]]; then echo ''; else echo 'Ensure no legacy " + " entries exist in /etc/shadow'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.3", "Ensure no legacy " + " entries exist in /etc/shadow (Scored)", checkstat})
-
-	// Check 6.2.4
-	cmd = "if [[ `sudo grep '^+:' /etc/group` == '' ]]; then echo ''; else echo 'Ensure no legacy " + " entries exist in /etc/group'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.4", "Ensure no legacy " + " entries exist in /etc/group (Scored)", checkstat})
-
-	// Check 6.2.5
-	cmd = "if [[ `awk -F: '($3 == 0) { print $1 }' /etc/passwd|grep root|wc -l` -eq 1 ]]; then echo ''; else echo 'Ensure root is the only UID 0 account'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.5", "Ensure root is the only UID 0 account (Scored)", checkstat})
-
-	// Check 6.2.6
-	cmd = "found=0; if [[ `echo $PATH|grep ::` != '' || `echo $PATH|grep :?` != '' ]]; then found=0; else found=1; fi; p=$(echo $PATH | sed -e 's/::/:/' -e 's/:$//' -e 's/:/ /g'); for d in $p; do if [[ `ls -ld $d|cut -d ' ' -f1|awk '{print substr($0, 6, 1);}'` != '-' || `ls -ld $d|cut -d ' ' -f1|awk '{print substr($0, 9, 1);}'` != '-' ]]; then found=0; else found=1; fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'Ensure root PATH Integrity'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.6", "Ensure root PATH Integrity (Scored)", checkstat})
-
-	// Check 6.2.7
-	cmd = "found=0; cat /etc/passwd | while read entry; do if [[ `echo $entry|grep -v nobody|awk -F: '{print $3}'` -ge 1000 ]]; then dir=`echo $entry|awk -F: '{print $6}'`; if [[ ! -d $dir ]]; then found=1; fi; fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'missing home dir(s)'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.7", "Ensure all users' home directories exist (Scored)", checkstat})
-
-	// Check 6.2.8
-	cmd = "found=0; cat /etc/passwd | while read entry; do if [[ `echo $entry|grep -v nobody|awk -F: '{print $3}'` -ge 1000 ]]; then dir=`echo $entry|awk -F: '{print $6}'`; if [[ `ls -ld $dir 2>/dev/null|cut -d ' ' -f1|awk '{print substr($0, 8, 3);}'` != '---' ]]; then found=1; fi; fi; done; if [[ $found == 1 ]]; then echo ''; else echo 'home dir permissions incorrect'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.8", "Ensure users' home directories permissions are 750 or more restrictive (Scored)", checkstat})
-
-	// Check 6.2.9
-	cmd = "found=0; cat /etc/passwd | while read entry; do if [[ `echo $entry|grep -v nobody|awk -F: '{print $3}'` -ge 1000 ]]; then dir=`echo $entry|awk -F: '{print $6}'`; user=`echo $entry|awk -F: '{print $1}'`; if [[ `stat -L -c %U $dir` != $user ]]; then found=1; fi; fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'home dir ownership incorrect'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.9", "Ensure users own their home directories (Scored)", checkstat})
-
-	// Check 6.2.10
-	cmd = "found=0; cat /etc/passwd | while read entry; do if [[ `echo $entry|grep -v nobody|awk -F: '{print $3}'` -ge 1000 ]]; then dir=`echo $entry|awk -F: '{print $6}'`; for file in $dir/.[A-Za-z0-9]*; do if [[ `ls -ld $file|cut -d ' ' -f1|awk '{print substr($0, 6, 1);}'` != '-' || `ls -ld $file|cut -d ' ' -f1|awk '{print substr($0, 9, 1);}'` != '-' ]]; then echo found=1; fi; done;fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'dot files are not group or world writable'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.10", "Ensure users dot files are not group or world writable (Scored)", checkstat})
-
-	// Check 6.2.11
-	cmd = "found=0; cat /etc/passwd | while read entry; do if [[ `echo $entry|grep -v nobody|awk -F: '{print $3}'` -ge 1000 ]]; then dir=`echo $entry|awk -F: '{print $6}'`; if [[ `ls -l $dir/.forward 2>/dev/null` != '' ]]; then found=1; fi; fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'users have .forward files'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.11", "Ensure no users have .forward files (Scored)", checkstat})
-
-	// Check 6.2.12
-	cmd = "found=0; cat /etc/passwd | while read entry; do if [[ `echo $entry|grep -v nobody|awk -F: '{print $3}'` -ge 1000 ]]; then dir=`echo $entry|awk -F: '{print $6}'`; if [[ `ls -l $dir/.netrc 2>/dev/null` != '' ]]; then found=1; fi; fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'users have .netrc files'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.12", "Ensure no users have .netrc files (Scored)", checkstat})
-
-	// Check 6.2.13
-	cmd = "found=0; cat /etc/passwd | while read entry; do if [[ `echo $entry|grep -v nobody|awk -F: '{print $3}'` -ge 1000 ]]; then dir=`echo $entry|awk -F: '{print $6}'`; if [[ `ls -l $dir/.netrc 2>/dev/null` != '' ]]; then found=1; fi; fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'users have .netrc files'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.13", "Ensure users .netrc Files are not group or world accessible (Scored)", checkstat})
-
-	// Check 6.2.14
-	cmd = "found=0; cat /etc/passwd | while read entry; do if [[ `echo $entry|grep -v nobody|awk -F: '{print $3}'` -ge 1000 ]]; then dir=`echo $entry|awk -F: '{print $6}'`; if [[ `ls -l $dir/.rhosts 2>/dev/null` != '' ]]; then found=1; fi; fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'users have .rhosts files'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.14", "Ensure no users have .rhosts files (Scored)", checkstat})
-
-	// Check 6.2.15
-	cmd = "found=0; for i in $(cut -s -d: -f4 /etc/passwd | sort -u ); do if [[ `cat /etc/group|awk -F: '{print $3}'|grep -w $i` == '' ]]; then found=1; fi; done; if [[ $found == 0 ]]; then echo ''; else echo 'Ensure all groups in /etc/passwd exist in /etc/group'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.15", "Ensure all groups in /etc/passwd exist in /etc/group (Scored)", checkstat})
-
-	// Check 6.2.16
-	cmd = "if [[ `awk -F: '{print $3}' /etc/passwd| sort -n|uniq| wc -l` -eq `cat /etc/passwd|wc -l` ]]; then echo ''; else echo 'Ensure no duplicate UIDs exist'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.16", "Ensure no duplicate UIDs exist (Scored)", checkstat})
-
-	// Check 6.2.17
-	cmd = "if [[ `awk -F: '{print $3}' /etc/group| sort -n|uniq| wc -l` -eq `cat /etc/group|wc -l` ]]; then echo ''; else echo 'Ensure no duplicate GIDs exist'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.17", "Ensure no duplicate UIDs exist (Scored)", checkstat})
-
-	// Check 6.2.18
-	cmd = "if [[ `awk -F: '{print $1}' /etc/passwd| sort -n|uniq| wc -l` -eq `cat /etc/passwd|wc -l` ]]; then echo ''; else echo 'Ensure no duplicate usernames exist'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.18", "Ensure no duplicate user names exist (Scored)", checkstat})
-
-	// Check 6.2.19
-	cmd = "if [[ `awk -F: '{print $1}' /etc/group| sort -n|uniq| wc -l` -eq `cat /etc/group|wc -l` ]]; then echo ''; else echo 'Ensure no duplicate groupnamesIDs exist'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.19", "Ensure no duplicate group names exist (Scored)", checkstat})
-
-	// Check 6.2.20
-	cmd = "if [[ `grep ^shadow:[^:]*:[^:]*:[^:]+ /etc/group` == '' ]]; then echo ''; else echo 'Ensure shadow group is empty'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"6.2.20", "Ensure shadow group is empty (Scored)", checkstat})
-
+	log.Printf("DEBUG: Completed %d CIS cislinuxsix checks via batch execution\n", len(ServicesSlice))
 	return ServicesSlice
 }
 
-func init() {
+// Fallback function for individual command execution if batch fails
+func cislinuxsixFallback(conn *remexec.SSHConnection, checks []Check) []Datastat {
+	ServicesSlice := []Datastat{}
+	log.Println("DEBUG: Using fallback individual command execution")
+	
+	for _, check := range checks {
+		out, err := conn.RunCommand(check.Command)
+		if err != nil {
+			log.Printf("ERROR: Command failed for %s: %v\n", check.ID, err)
+		}
+		
+		var checkstat string
+		if len(strings.TrimSpace(out)) == 0 {
+			checkstat = "PASS"
+		} else {
+			log.Printf("DEBUG: Check %s output: %s\n", check.ID, out)
+			checkstat = "FAIL"
+		}
+		ServicesSlice = append(ServicesSlice, Datastat{check.ID, check.Description, checkstat})
+	}
+	
+	return ServicesSlice
 }
 
-// Datastat struct declaration
+// Original Cislinuxsix Function - Updated to use optimized connection handling
+func Cislinuxsix(user string, host string, pass string, key string) []Datastat {
+	// Create connection for this scan
+	conn, err := remexec.NewSSHConnection(user, host, pass, key)
+	if err != nil {
+		log.Printf("ERROR: Failed to create SSH connection: %v\n", err)
+		return []Datastat{}
+	}
+	defer conn.Close()
+	
+	return CislinuxsixOptimized(conn)
+}
+
+// Datastat Type
 type Datastat struct {
 	Controlid string
 	Check     string

@@ -30,17 +30,22 @@
 						<div id="controlBar">
 							<div class="container">
 								<div style="margin-bottom:8px;"><h4 style="margin:0;">{{.Title}}</h4></div>
-								<form id="scanForm" class="form-inline" action="/scan" method="post" onsubmit="startStream(event)">
+								<form id="scanForm" class="form-inline" action="/scan" method="post" enctype="multipart/form-data">
 									<label class="sr-only" for="inlineFormInputName2">Name</label>
-									<input type="text" name="name" value="" class="form-control mb-2 mr-sm-2" id="inlineFormInputName2" placeholder="Hostname/IP">
+									<input type="text" name="name" value="" class="form-control mb-2 mr-sm-2" id="name" placeholder="Hostname/IP">
 									<div class="form-group">
 										<label class="sr-only" for="exampleInputName3">User</label>
-										<input type="text" name="user" value="" class="form-control" id="exampleInputName3" placeholder="User">
+										<input type="text" name="user" value="" class="form-control" id="user" placeholder="User">
 									</div>
 									<div class="form-group">
 										<label class="sr-only" for="exampleInputPassword3">Password</label>
-										<input type="password" name="password" value="" class="form-control" id="exampleInputPassword3" placeholder="Password">
+										<input type="password" name="password" value="" class="form-control" id="password" placeholder="Password">
 									</div>
+									<div class="form-group" style="margin-left:8px;">
+										<label class="sr-only" for="keyfile">Private Key</label>
+										<input type="file" id="keyfile" name="keyfile" accept=".pem" class="form-control input-sm" />
+									</div>
+									<input type="hidden" id="key" name="key" value="" />
 									  <button type="submit" class="btn btn-primary mb-2">Submit</button>
 									  <button id="stopBtn" type="button" class="btn btn-danger mb-2" style="display:none; margin-left:6px;">Stop</button>
 								</form>
@@ -85,6 +90,6 @@
 					</div>
 					</div>
 
-			<script src="/static/js/app.js?v=2"></script>
+			<script src="/static/js/app.js?v=3"></script>
 		</body>
 </html>

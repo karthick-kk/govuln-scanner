@@ -1,398 +1,272 @@
 package cislinuxtwo
 
 import (
-	"log"
 	"govuln-scanner/remexec"
+	"log"
 	"strings"
 )
 
 var checkstat, cmd string
 
-// Cislinuxtwo Function
-func Cislinuxtwo(user string, host string, pass string) []Datastat {
+// Check represents a single CIS check
+type Check struct {
+	ID          string
+	Description string
+	Command     string
+}
+
+// CislinuxtwoOptimized Function - Optimized version with connection reuse
+func CislinuxtwoOptimized(conn *remexec.SSHConnection) []Datastat {
 	ServicesSlice := []Datastat{}
 
-	// Check 2.1.1
-	cmd = "grep -R \"^chargen\" /etc/inetd.*"
-	out, _ := remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
+	// Define all checks with their commands
+	checks := []Check{
+		{
+			ID:          "2.1.1",
+			Description: "Ensure chargen services are not enabled (Scored)",
+			Command:     "if ls /etc/inetd.* 1>/dev/null 2>&1; then grep -R \"^chargen\" /etc/inetd.* || true; else echo ''; fi",
+		},
+		{
+			ID:          "2.1.2",
+			Description: "Ensure daytime services are not enabled (Scored)",
+			Command:     "if ls /etc/inetd.* 1>/dev/null 2>&1; then grep -R \"^daytime\" /etc/inetd.* || true; else echo ''; fi",
+		},
+		{
+			ID:          "2.1.3",
+			Description: "Ensure discard services are not enabled (Scored)",
+			Command:     "if ls /etc/inetd.* 1>/dev/null 2>&1; then grep -R \"^discard\" /etc/inetd.* || true; else echo ''; fi",
+		},
+		{
+			ID:          "2.1.4",
+			Description: "Ensure echo services are not enabled (Scored)",
+			Command:     "if ls /etc/inetd.* 1>/dev/null 2>&1; then grep -R \"^echo\" /etc/inetd.* || true; else echo ''; fi",
+		},
+		{
+			ID:          "2.1.5",
+			Description: "Ensure time services are not enabled (Scored)",
+			Command:     "if ls /etc/inetd.* 1>/dev/null 2>&1; then grep -R \"^time\" /etc/inetd.* || true; else echo ''; fi",
+		},
+		{
+			ID:          "2.1.6",
+			Description: "Ensure rsh server is not enabled (Scored)",
+			Command:     "if ls /etc/inetd.* 1>/dev/null 2>&1; then if [[ `grep -R \"^shell\" /etc/inetd.* 2>/dev/null` == '' && `grep -R \"^login\" /etc/inetd.* 2>/dev/null` == '' && `grep -R \"^exec\" /etc/inetd.* 2>/dev/null` == '' ]]; then echo ''; else echo 'rsh server enabled'; fi; else echo ''; fi",
+		},
+		{
+			ID:          "2.1.7",
+			Description: "Ensure talk server is not enabled (Scored)",
+			Command:     "if ls /etc/inetd.* 1>/dev/null 2>&1; then if [[ `grep -R \"^talk\" /etc/inetd.* 2>/dev/null` == '' && `grep -R \"^ntalk\" /etc/inetd.* 2>/dev/null` == '' ]]; then echo ''; else echo 'talk server enabled'; fi; else echo ''; fi",
+		},
+		{
+			ID:          "2.1.8",
+			Description: "Ensure telnet server is not enabled (Scored)",
+			Command:     "if ls /etc/inetd.* 1>/dev/null 2>&1; then grep -R \"^telnet\" /etc/inetd.* || true; else echo ''; fi",
+		},
+		{
+			ID:          "2.1.9",
+			Description: "Ensure tftp server is not enabled (Scored)",
+			Command:     "if ls /etc/inetd.* 1>/dev/null 2>&1; then grep -R \"^tftp\" /etc/inetd.* || true; else echo ''; fi",
+		},
+		{
+			ID:          "2.2.1.1",
+			Description: "Ensure time synchronization is in use (Not Scored)",
+			Command:     "case `for i in $( echo rpm dpkg pacman ); do which $i; done 2> /dev/null|awk -F'bin/' '{print $NF}'` in dpkg) if [[ `dpkg -s ntp 2>/dev/null` != '' || `dpkg -s chrony 2>/dev/null` != '' ]]; then echo ''; else echo 'time package not detected'; fi;; rpm) if [[ `rpm -q ntp 2>/dev/null` != '' || `rpm -q chrony 2>/dev/null` != '' ]]; then echo ''; else echo 'time package not detected'; fi;; esac",
+		},
+		{
+			ID:          "2.2.1.2",
+			Description: " Ensure ntp is configured (Scored)",
+			Command:     "if [[ `grep \"^restrict\" /etc/ntp.conf 2>/dev/null` != '' ]]; then echo ''; else echo 'ntp not configured correctly'; fi",
+		},
+		{
+			ID:          "2.2.1.3",
+			Description: "Ensure chrony is configured (Scored)",
+			Command:     "if [[ `grep -E \"^(server|pool)\" /etc/chrony.conf 2>/dev/null` != '' ]]; then echo ''; else echo 'chrony not installed/configured correctly'; fi",
+		},
+		{
+			ID:          "2.2.1.4",
+			Description: "Ensure systemd-timesyncd is configured (Scored)",
+			Command:     "if [[ `timedatectl status|grep synchronized|grep yes` != '' ]]; then echo ''; else echo 'time not synced'; fi",
+		},
+		{
+			ID:          "2.2.2",
+			Description: "Ensure X Window System is not installed (Scored)",
+			Command:     "if [[ `dpkg -s xserver-xorg 2>/dev/null` == '' && `rpm -q xorg-x11-server-Xorg 2>/dev/null` == '' ]]; then echo ''; else echo 'xorg installed'; fi",
+		},
+		{
+			ID:          "2.2.3",
+			Description: "Ensure Avahi Server is not enabled (Scored)",
+			Command:     "if [[ `ls /etc/rc*.d | grep avahi-daemon|grep S` == '' ]]; then echo ''; else echo 'avahi-daemon running'; fi",
+		},
+		{
+			ID:          "2.2.4",
+			Description: "Ensure CUPS is not enabled (Scored)",
+			Command:     "if [[ `ls /etc/rc*.d | grep cups|grep S` == '' ]]; then echo ''; else echo 'cups running'; fi",
+		},
+		{
+			ID:          "2.2.5",
+			Description: "Ensure DHCP Server is not enabled (Scored)",
+			Command:     "if [[ `ls /etc/rc*.d | grep dhcpd|grep S` == '' ]]; then echo ''; else echo 'dhcpd running'; fi",
+		},
+		{
+			ID:          "2.2.6",
+			Description: "Ensure LDAP server is not enabled (Scored)",
+			Command:     "if [[ `ls /etc/rc*.d | grep slapd|grep S` == '' ]]; then echo ''; else echo 'slapd running'; fi",
+		},
+		{
+			ID:          "2.2.7",
+			Description: "Ensure NFS and RPC are not enabled (Scored)",
+			Command:     "if [[ `ls /etc/rc*.d | grep nfs|grep S` == '' && `ls /etc/rc*.d | grep rpcbind|grep S` == '' ]]; then echo ''; else echo 'nfs/rpcbind running'; fi",
+		},
+		{
+			ID:          "2.2.8",
+			Description: "Ensure DNS Server is not enabled (Scored)",
+			Command:     "if [[ `ls /etc/rc*.d | grep named|grep S` == '' ]]; then echo ''; else echo 'named running'; fi",
+		},
+		{
+			ID:          "2.2.9",
+			Description: "Ensure FTP Server is not enabled (Scored)",
+			Command:     "if [[ `ls /etc/rc*.d | grep vsftpd|grep S` == '' ]]; then echo ''; else echo 'vsftpd running'; fi",
+		},
+		{
+			ID:          "2.2.10",
+			Description: "Ensure HTTP server is not enabled (Scored)",
+			Command:     "if [[ `ls /etc/rc*.d | grep httpd|grep S` == '' ]]; then echo ''; else echo 'httpd running'; fi",
+		},
+		{
+			ID:          "2.2.11",
+			Description: "Ensure IMAP and POP3 server is not enabled (Scored)",
+			Command:     "if [[ `ls /etc/rc*.d | grep dovecot|grep S` == '' ]]; then echo ''; else echo 'dovecot running'; fi",
+		},
+		{
+			ID:          "2.2.12",
+			Description: "Ensure Samba is not enabled (Scored)",
+			Command:     "if [[ `ls /etc/rc*.d | grep smb|grep S` == '' ]]; then echo ''; else echo 'smb running'; fi",
+		},
+		{
+			ID:          "2.2.13",
+			Description: "Ensure HTTP Proxy Server is not enabled (Scored)",
+			Command:     "if [[ `ls /etc/rc*.d | grep squid|grep S` == '' ]]; then echo ''; else echo 'squid running'; fi",
+		},
+		{
+			ID:          "2.2.14",
+			Description: "Ensure SNMP Server is not enabled (Scored)",
+			Command:     "if [[ `ls /etc/rc*.d | grep snmpd|grep S` == '' ]]; then echo ''; else echo 'snmpd running'; fi",
+		},
+		{
+			ID:          "2.2.15",
+			Description: "Ensure mail transfer agent is configured for local-only mode (Scored)",
+			Command:     "if [[ `ss -lntu | grep -E ':25\\s' | grep -E -v '\\s(127.0.0.1|::1):25\\s` == '' ]]; then echo ''; else echo 'MTA listening'; fi",
+		},
+		{
+			ID:          "2.2.16",
+			Description: "Ensure rsync service is not enabled (Scored)",
+			Command:     "if [[ `ls /etc/rc*.d | grep rsyncd|grep S` == '' ]]; then echo ''; else echo 'rsyncd running'; fi",
+		},
+		{
+			ID:          "2.2.17",
+			Description: "Ensure NIS Server is not enabled (Scored)",
+			Command:     "if [[ `ls /etc/rc*.d | grep ypserv|grep S` == '' ]]; then echo ''; else echo 'ypserv running'; fi",
+		},
+		{
+			ID:          "2.3.1",
+			Description: "Ensure NIS Client is not installed (Scored)",
+			Command:     "if [[ `dpkg -s ypbind 2>/dev/null` == '' && `rpm -q ypbind 2>/dev/null` == '' ]]; then echo ''; else echo 'ypbind installed'; fi",
+		},
+		{
+			ID:          "2.3.2",
+			Description: "Ensure rsh client is not installed (Scored)",
+			Command:     "if [[ `dpkg -s rsh 2>/dev/null` == '' && `rpm -q rsh 2>/dev/null` == '' ]]; then echo ''; else echo 'rsh installed'; fi",
+		},
+		{
+			ID:          "2.3.3",
+			Description: "Ensure talk client is not installed (Scored)",
+			Command:     "if [[ `dpkg -s talk 2>/dev/null` == '' && `rpm -q talk 2>/dev/null` == '' ]]; then echo ''; else echo 'talk installed'; fi",
+		},
+		{
+			ID:          "2.3.4",
+			Description: "Ensure telnet client is not installed (Scored)",
+			Command:     "if [[ `dpkg -s telnet 2>/dev/null` == '' && `rpm -q telnet 2>/dev/null` == '' ]]; then echo ''; else echo 'telnet installed'; fi",
+		},
+		{
+			ID:          "2.3.5",
+			Description: "Ensure LDAP client is not installed (Scored)",
+			Command:     "if [[ `dpkg -s openldap-clients 2>/dev/null` == '' && `rpm -q openldap-clients 2>/dev/null` == '' ]]; then echo ''; else echo 'openldap-clients installed'; fi",
+		},
 	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.1.1", "Ensure chargen services are not enabled (Scored)", checkstat})
 
-	// Check 2.1.2
-	cmd = "grep -R \"^daytime\" /etc/inetd.*"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
+	// Extract commands for batch execution
+	commands := make([]string, len(checks))
+	for i, check := range checks {
+		commands[i] = check.Command
 	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.1.2", "Ensure daytime services are not enabled (Scored)", checkstat})
 
-	// Check 2.1.3
-	cmd = "grep -R \"^discard\" /etc/inetd.*"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.1.3", "Ensure discard services are not enabled (Scored)", checkstat})
+	// Execute all commands in a single batch
+	log.Printf("DEBUG: Executing %d CIS cislinuxtwo checks in batch\n", len(commands))
+	batchResult := conn.RunCommandsBatch(commands)
 
-	// Check 2.1.4
-	cmd = "grep -R \"^echo\" /etc/inetd.*"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
+	if batchResult.Error != nil {
+		log.Printf("ERROR: Batch execution failed: %v\n", batchResult.Error)
+		// Fallback to individual commands if batch fails
+		return cislinuxtwoFallback(conn, checks)
 	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.1.4", "Ensure echo services are not enabled (Scored)", checkstat})
 
-	// Check 2.1.5
-	cmd = "grep -R \"^time\" /etc/inetd.*"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
+	// Process results
+	for i, result := range batchResult.Results {
+		var checkstat string
+		if len(strings.TrimSpace(result.Output)) == 0 {
+			checkstat = "PASS"
+		} else {
+			log.Printf("DEBUG: Check %s output: %s\n", checks[i].ID, result.Output)
+			checkstat = "FAIL"
+		}
+		ServicesSlice = append(ServicesSlice, Datastat{
+			checks[i].ID,
+			checks[i].Description,
+			checkstat,
+		})
 	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.1.5", "Ensure time services are not enabled (Scored)", checkstat})
 
-	// Check 2.1.6
-	cmd = "if [[ `grep -R \"^shell\" /etc/inetd.* 2>/dev/null` == '' && `grep -R \"^login\" /etc/inetd.* 2>/dev/null` == '' && `grep -R \"^exec\" /etc/inetd.* 2>/dev/null` == '' ]]; then echo ''; else echo 'rsh server enabled'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.1.6", "Ensure rsh server is not enabled (Scored)", checkstat})
+	log.Printf("DEBUG: Completed %d CIS cislinuxtwo checks via batch execution\n", len(ServicesSlice))
+	return ServicesSlice
+}
 
-	// Check 2.1.7
-	cmd = "if [[ `grep -R \"^talk\" /etc/inetd.* 2>/dev/null` == '' && `grep -R \"^ntalk\" /etc/inetd.* 2>/dev/null` == '' ]]; then echo ''; else echo 'talk server enabled'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.1.7", "Ensure talk server is not enabled (Scored)", checkstat})
+// Fallback function for individual command execution if batch fails
+func cislinuxtwoFallback(conn *remexec.SSHConnection, checks []Check) []Datastat {
+	ServicesSlice := []Datastat{}
+	log.Println("DEBUG: Using fallback individual command execution")
 
-	// Check 2.1.8
-	cmd = "grep -R \"^telnet\" /etc/inetd.*"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.1.8", "Ensure telnet server is not enabled (Scored)", checkstat})
+	for _, check := range checks {
+		out, err := conn.RunCommand(check.Command)
+		if err != nil {
+			log.Printf("ERROR: Command failed for %s: %v\n", check.ID, err)
+		}
 
-	// Check 2.1.9
-	cmd = "grep -R \"^tftp\" /etc/inetd.*"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
+		var checkstat string
+		if len(strings.TrimSpace(out)) == 0 {
+			checkstat = "PASS"
+		} else {
+			log.Printf("DEBUG: Check %s output: %s\n", check.ID, out)
+			checkstat = "FAIL"
+		}
+		ServicesSlice = append(ServicesSlice, Datastat{check.ID, check.Description, checkstat})
 	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.1.9", "Ensure tftp server is not enabled (Scored)", checkstat})
-
-	// Check 2.2.1.1
-	cmd = "case `for i in $( echo rpm dpkg pacman ); do which $i; done 2> /dev/null|awk -F'bin/' '{print $NF}'` in dpkg) if [[ `dpkg -s ntp 2>/dev/null` != '' || `dpkg -s chrony 2>/dev/null` != '' ]]; then echo ''; else echo 'time package not detected'; fi;; rpm) if [[ `rpm -q ntp 2>/dev/null` != '' || `rpm -q chrony 2>/dev/null` != '' ]]; then echo ''; else echo 'time package not detected'; fi;; esac"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.1.1", "Ensure time synchronization is in use (Not Scored)", checkstat})	
-
-	// Check 2.2.1.2
-	cmd = "if [[ `grep \"^restrict\" /etc/ntp.conf 2>/dev/null` != '' ]]; then echo ''; else echo 'ntp not configured correctly'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.1.2", " Ensure ntp is configured (Scored)", checkstat})	
-
-	// Check 2.2.1.3
-	cmd = "if [[ `grep -E \"^(server|pool)\" /etc/chrony.conf 2>/dev/null` != '' ]]; then echo ''; else echo 'chrony not installed/configured correctly'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.1.3", "Ensure chrony is configured (Scored)", checkstat})	
-
-	// Check 2.2.1.4
-	cmd = "if [[ `timedatectl status|grep synchronized|grep yes` != '' ]]; then echo ''; else echo 'time not synced'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.1.4", "Ensure systemd-timesyncd is configured (Scored)", checkstat})	
-
-	// Check 2.2.2
-	cmd = "if [[ `dpkg -s xserver-xorg 2>/dev/null` == '' && `rpm -q xorg-x11-server-Xorg 2>/dev/null` == '' ]]; then echo ''; else echo 'xorg installed'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.2", "Ensure X Window System is not installed (Scored)", checkstat})	
-
-	// Check 2.2.3
-	cmd = "if [[ `ls /etc/rc*.d | grep avahi-daemon|grep S` == '' ]]; then echo ''; else echo 'avahi-daemon running'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.3", "Ensure Avahi Server is not enabled (Scored)", checkstat})	
-
-	// Check 2.2.4
-	cmd = "if [[ `ls /etc/rc*.d | grep cups|grep S` == '' ]]; then echo ''; else echo 'cups running'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.4", "Ensure CUPS is not enabled (Scored)", checkstat})	
-
-	// Check 2.2.5
-	cmd = "if [[ `ls /etc/rc*.d | grep dhcpd|grep S` == '' ]]; then echo ''; else echo 'dhcpd running'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.5", "Ensure DHCP Server is not enabled (Scored)", checkstat})	
-
-	// Check 2.2.6
-	cmd = "if [[ `ls /etc/rc*.d | grep slapd|grep S` == '' ]]; then echo ''; else echo 'slapd running'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.6", "Ensure LDAP server is not enabled (Scored)", checkstat})	
-
-	// Check 2.2.7
-	cmd = "if [[ `ls /etc/rc*.d | grep nfs|grep S` == '' && `ls /etc/rc*.d | grep rpcbind|grep S` == '' ]]; then echo ''; else echo 'nfs/rpcbind running'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.7", "Ensure NFS and RPC are not enabled (Scored)", checkstat})	
-
-	// Check 2.2.8
-	cmd = "if [[ `ls /etc/rc*.d | grep named|grep S` == '' ]]; then echo ''; else echo 'named running'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.8", "Ensure DNS Server is not enabled (Scored)", checkstat})	
-
-	// Check 2.2.9
-	cmd = "if [[ `ls /etc/rc*.d | grep vsftpd|grep S` == '' ]]; then echo ''; else echo 'vsftpd running'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.9", "Ensure FTP Server is not enabled (Scored)", checkstat})	
-
-	// Check 2.2.10
-	cmd = "if [[ `ls /etc/rc*.d | grep httpd|grep S` == '' ]]; then echo ''; else echo 'httpd running'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.10", "Ensure HTTP server is not enabled (Scored)", checkstat})	
-
-	// Check 2.2.11
-	cmd = "if [[ `ls /etc/rc*.d | grep dovecot|grep S` == '' ]]; then echo ''; else echo 'dovecot running'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.11", "Ensure IMAP and POP3 server is not enabled (Scored)", checkstat})	
-
-	// Check 2.2.12
-	cmd = "if [[ `ls /etc/rc*.d | grep smb|grep S` == '' ]]; then echo ''; else echo 'smb running'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.12", "Ensure Samba is not enabled (Scored)", checkstat})	
-
-	// Check 2.2.13
-	cmd = "if [[ `ls /etc/rc*.d | grep squid|grep S` == '' ]]; then echo ''; else echo 'squid running'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.13", "Ensure HTTP Proxy Server is not enabled (Scored)", checkstat})	
-
-	// Check 2.2.14
-	cmd = "if [[ `ls /etc/rc*.d | grep snmpd|grep S` == '' ]]; then echo ''; else echo 'snmpd running'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.14", "Ensure SNMP Server is not enabled (Scored)", checkstat})	
-
-	// Check 2.2.15
-	cmd = "if [[ `ss -lntu | grep -E ':25\\s' | grep -E -v '\\s(127.0.0.1|::1):25\\s` == '' ]]; then echo ''; else echo 'MTA listening'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.15", "Ensure mail transfer agent is configured for local-only mode (Scored)", checkstat})	
-
-	// Check 2.2.16
-	cmd = "if [[ `ls /etc/rc*.d | grep rsyncd|grep S` == '' ]]; then echo ''; else echo 'rsyncd running'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.16", "Ensure rsync service is not enabled (Scored)", checkstat})	
-
-	// Check 2.2.17
-	cmd = "if [[ `ls /etc/rc*.d | grep ypserv|grep S` == '' ]]; then echo ''; else echo 'ypserv running'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.2.17", "Ensure NIS Server is not enabled (Scored)", checkstat})	
-
-	// Check 2.3.1
-	cmd = "if [[ `dpkg -s ypbind 2>/dev/null` == '' && `rpm -q ypbind 2>/dev/null` == '' ]]; then echo ''; else echo 'ypbind installed'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.3.1", "Ensure NIS Client is not installed (Scored)", checkstat})	
-
-	// Check 2.3.2
-	cmd = "if [[ `dpkg -s rsh 2>/dev/null` == '' && `rpm -q rsh 2>/dev/null` == '' ]]; then echo ''; else echo 'rsh installed'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.3.2", "Ensure rsh client is not installed (Scored)", checkstat})	
-
-	// Check 2.3.3
-	cmd = "if [[ `dpkg -s talk 2>/dev/null` == '' && `rpm -q talk 2>/dev/null` == '' ]]; then echo ''; else echo 'talk installed'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.3.3", "Ensure talk client is not installed (Scored)", checkstat})	
-
-	// Check 2.3.4
-	cmd = "if [[ `dpkg -s telnet 2>/dev/null` == '' && `rpm -q telnet 2>/dev/null` == '' ]]; then echo ''; else echo 'telnet installed'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.3.4", "Ensure telnet client is not installed (Scored)", checkstat})	
-
-	// Check 2.3.5
-	cmd = "if [[ `dpkg -s openldap-clients 2>/dev/null` == '' && `rpm -q openldap-clients 2>/dev/null` == '' ]]; then echo ''; else echo 'openldap-clients installed'; fi"
-	out, _ = remexec.RemoteRun(user, host, pass, cmd)
-	if len(strings.TrimSpace(out)) == 0 {
-		checkstat = "PASS"
-	} else {
-		log.Println(out)
-		checkstat = "FAIL"
-	}
-	ServicesSlice = append(ServicesSlice, Datastat{"2.3.5", "Ensure LDAP client is not installed (Scored)", checkstat})	
 
 	return ServicesSlice
 }
 
-func init() {
+// Original Cislinuxtwo Function - Updated to use optimized connection handling
+func Cislinuxtwo(user string, host string, pass string, key string) []Datastat {
+	// Create connection for this scan
+	conn, err := remexec.NewSSHConnection(user, host, pass, key)
+	if err != nil {
+		log.Printf("ERROR: Failed to create SSH connection: %v\n", err)
+		return []Datastat{}
+	}
+	defer conn.Close()
+
+	return CislinuxtwoOptimized(conn)
 }
 
-// Datastat struct declaration
+// Datastat Type
 type Datastat struct {
 	Controlid string
 	Check     string

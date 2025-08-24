@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"govuln-scanner/cislinuxsix"
 	"govuln-scanner/cislinuxthree"
 	"govuln-scanner/cislinuxtwo"
+	"govuln-scanner/remexec"
 	"log"
 	"net/http"
 	"os"
@@ -75,23 +77,48 @@ func percentOf(part int, total int) float64 {
 				// auth removed; no session username
 
 				// scandata aggregates results from all cis modules into []Datastat
-				func scandata(user string, host string, pass string) []Datastat {
-					resultcisscan1 := cislinuxone.Cislinuxone(user, host, pass)
-					resultcisscan2 := cislinuxtwo.Cislinuxtwo(user, host, pass)
-					resultcisscan3 := cislinuxthree.Cislinuxthree(user, host, pass)
-					resultcisscan4 := cislinuxfour.Cislinuxfour(user, host, pass)
-					resultcisscan5 := cislinuxfive.Cislinuxfive(user, host, pass)
-					resultcisscan6 := cislinuxsix.Cislinuxsix(user, host, pass)
+				// key is an optional SSH private key (file path or PEM). If provided
+				// scandata function - Optimized to use single SSH connection for all modules
+				func scandata(user string, host string, pass string, key string) []Datastat {
+					log.Printf("DEBUG: scandata called with user: %s, host: %s, pass: [%d chars], key: [%d chars]\n", user, host, len(pass), len(key))
+					
+					// Create single SSH connection for entire scan
+					conn, err := remexec.NewSSHConnection(user, host, pass, key)
+					if err != nil {
+						log.Printf("ERROR: Failed to create SSH connection: %v\n", err)
+						return []Datastat{}
+					}
+					defer conn.Close()
+					log.Printf("DEBUG: Single SSH connection established for optimized scanning\n")
+					
+					// Execute all modules using the shared connection
+					resultcisscan1 := cislinuxone.CislinuxoneOptimized(conn)
+					log.Printf("DEBUG: cislinuxone completed, results: %d\n", len(resultcisscan1))
+					
+					resultcisscan2 := cislinuxtwo.CislinuxtwoOptimized(conn)
+					log.Printf("DEBUG: cislinuxtwo completed, results: %d\n", len(resultcisscan2))
+					
+					resultcisscan3 := cislinuxthree.CislinuxthreeOptimized(conn)
+					log.Printf("DEBUG: cislinuxthree completed, results: %d\n", len(resultcisscan3))
+					
+					resultcisscan4 := cislinuxfour.CislinuxfourOptimized(conn)
+					log.Printf("DEBUG: cislinuxfour completed, results: %d\n", len(resultcisscan4))
+					
+					resultcisscan5 := cislinuxfive.CislinuxfiveOptimized(conn)
+					log.Printf("DEBUG: cislinuxfive completed, results: %d\n", len(resultcisscan5))
+					
+					resultcisscan6 := cislinuxsix.CislinuxsixOptimized(conn)
+					log.Printf("DEBUG: cislinuxsix completed, results: %d\n", len(resultcisscan6))
 
 					combo := []Datastat{}
 
 					// use JSON roundtrip to convert package-specific types to local Datastat
 					var jb []byte
-					var err error
-					jb, err = json.Marshal(resultcisscan1)
-					Use(err)
+					var err2 error
+					jb, err2 = json.Marshal(resultcisscan1)
+					Use(err2)
 					var items []Datastat
-					if err = json.Unmarshal(jb, &items); err == nil {
+					if err2 = json.Unmarshal(jb, &items); err2 == nil {
 						combo = append(combo, items...)
 					}
 
@@ -135,6 +162,7 @@ func percentOf(part int, total int) float64 {
 
 				// StreamHandler streams check results as Server-Sent Events (SSE).
 				func StreamHandler(w http.ResponseWriter, r *http.Request) {
+					log.Println("DEBUG: StreamHandler called")
 					fl, ok := w.(http.Flusher)
 					if !ok {
 						http.Error(w, "streaming unsupported", http.StatusInternalServerError)
@@ -146,6 +174,16 @@ func percentOf(part int, total int) float64 {
 					user := q.Get("user")
 					host := q.Get("name")
 					pass := q.Get("password")
+					key := q.Get("key")
+					log.Printf("DEBUG: StreamHandler params - user: %s, host: %s, pass: [%d chars], key: [%d chars]\n", user, host, len(pass), len(key))
+					
+					// optional key parameter is base64-encoded PEM; if present, decode and use
+					if k := q.Get("key"); k != "" {
+						if decoded, err := base64.StdEncoding.DecodeString(k); err == nil {
+							key = string(decoded)
+							log.Println("DEBUG: StreamHandler decoded base64 key")
+						}
+					}
 
 					w.Header().Set("Content-Type", "text/event-stream")
 					w.Header().Set("Cache-Control", "no-cache")
@@ -198,15 +236,25 @@ func percentOf(part int, total int) float64 {
 						}
 					}
 
-					// Call modules lazily. If client disconnects (ctx.Done()), stop starting new modules.
+					// Call modules lazily using optimized connection. If client disconnects (ctx.Done()), stop starting new modules.
+					// Create single SSH connection for streaming scan
+					conn, err := remexec.NewSSHConnection(user, host, pass, key)
+					if err != nil {
+						log.Printf("ERROR: Failed to create SSH connection for streaming: %v\n", err)
+						sendEvent("error", "SSH connection failed: "+err.Error())
+						return
+					}
+					defer conn.Close()
+					log.Printf("DEBUG: Single SSH connection established for streaming scan\n")
+					
 					// Use interface{} return so each module can return its package-specific slice type.
 					modules := []func() interface{}{
-						func() interface{} { return cislinuxone.Cislinuxone(user, host, pass) },
-						func() interface{} { return cislinuxtwo.Cislinuxtwo(user, host, pass) },
-						func() interface{} { return cislinuxthree.Cislinuxthree(user, host, pass) },
-						func() interface{} { return cislinuxfour.Cislinuxfour(user, host, pass) },
-						func() interface{} { return cislinuxfive.Cislinuxfive(user, host, pass) },
-						func() interface{} { return cislinuxsix.Cislinuxsix(user, host, pass) },
+						func() interface{} { return cislinuxone.CislinuxoneOptimized(conn) },
+						func() interface{} { return cislinuxtwo.CislinuxtwoOptimized(conn) },
+						func() interface{} { return cislinuxthree.CislinuxthreeOptimized(conn) },
+						func() interface{} { return cislinuxfour.CislinuxfourOptimized(conn) },
+						func() interface{} { return cislinuxfive.CislinuxfiveOptimized(conn) },
+						func() interface{} { return cislinuxsix.CislinuxsixOptimized(conn) },
 					}
 
 					for _, m := range modules {
@@ -229,7 +277,7 @@ func percentOf(part int, total int) float64 {
 					}
 
 					// calculate score and send final summary
-					report := scandata(user, host, pass)
+					report := scandata(user, host, pass, key)
 					score, total := 0, 0
 					for _, item := range report {
 						if strings.Contains(item.Check, "Not Scored") != true {
@@ -251,14 +299,53 @@ func percentOf(part int, total int) float64 {
 
 				// ScanHandler functions
 				func ScanHandler(w http.ResponseWriter, r *http.Request) {
-					err := r.ParseForm()
+					log.Println("DEBUG: ScanHandler called with method:", r.Method)
+					
+					// Parse multipart form for file uploads (32MB max)
+					err := r.ParseMultipartForm(32 << 20)
 					if err != nil {
-						// Handle error here via logging and then return
+						log.Printf("DEBUG: Error parsing multipart form: %v, trying regular form\n", err)
+						err = r.ParseForm()
+						if err != nil {
+							log.Printf("DEBUG: Error parsing form: %v\n", err)
+							return
+						}
 					}
-					var user, host, pass string
-					host = r.PostFormValue("name")
-					user = r.PostFormValue("user")
-					pass = r.PostFormValue("password")
+					
+					var user, host, pass, key string
+					host = r.FormValue("name")
+					user = r.FormValue("user")
+					pass = r.FormValue("password")
+					key = r.FormValue("key")
+					
+					// Handle file upload for private key
+					if file, _, err := r.FormFile("keyfile"); err == nil {
+						defer file.Close()
+						keyBytes := make([]byte, 32768) // Max 32KB key file
+						n, err := file.Read(keyBytes)
+						if err != nil {
+							log.Printf("DEBUG: Error reading key file: %v\n", err)
+						} else {
+							keyContent := string(keyBytes[:n])
+							// If it looks like base64 encoded, decode it
+							if decoded, err := base64.StdEncoding.DecodeString(keyContent); err == nil {
+								key = string(decoded)
+								log.Println("DEBUG: Decoded base64 key from file")
+							} else {
+								key = keyContent
+								log.Println("DEBUG: Using raw key content from file")
+							}
+						}
+					} else if key != "" {
+						// Handle base64-encoded key from hidden form field
+						if decoded, err := base64.StdEncoding.DecodeString(key); err == nil {
+							key = string(decoded)
+							log.Println("DEBUG: Decoded base64 key from form field")
+						}
+					}
+					
+					log.Printf("DEBUG: Form values - host: %s, user: %s, pass: [%d chars], key: [%d chars]\n", host, user, len(pass), len(key))
+					
 					log.Println(r.Method)
 					w.Header().Add("Content Type", "text/html")
 					// Load templates from files
@@ -278,7 +365,7 @@ func percentOf(part int, total int) float64 {
 					result := tpl.String()
 
 					// Fetch CIS report
-					report := scandata(user, host, pass)
+					report := scandata(user, host, pass, key)
 
 					// Calculate Score
 					score, total := 0, 0
@@ -324,11 +411,22 @@ func percentOf(part int, total int) float64 {
 					var port int
 					flag.IntVar(&port, "p", 8000, "specify port to use. defaults to 8000")
 					flag.Parse()
-					http.HandleFunc("/", indexHandler)
-					http.HandleFunc("/scan", ScanHandler)
+					log.Printf("Starting server on port %d", port)
+					http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+						log.Printf("GET / - serving index")
+						indexHandler(w, r)
+					})
+					http.HandleFunc("/scan", func(w http.ResponseWriter, r *http.Request) {
+						log.Printf("POST /scan - received request")
+						ScanHandler(w, r)
+					})
 					// serve static files (css/js/images)
 					fs := http.FileServer(http.Dir("./static"))
 					http.Handle("/static/", http.StripPrefix("/static/", fs))
-					http.HandleFunc("/stream", StreamHandler)
+					http.HandleFunc("/stream", func(w http.ResponseWriter, r *http.Request) {
+						log.Printf("POST /stream - received request")
+						StreamHandler(w, r)
+					})
+					log.Printf("Server listening on http://localhost:%d", port)
 					log.Fatal(http.ListenAndServe(":"+strconv.Itoa(port), nil))
 				}
